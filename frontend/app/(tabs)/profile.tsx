@@ -68,7 +68,7 @@ export default function Profile() {
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Me</Text>
           <Pressable
-            testID="profile-edit-btn"
+            testID={editing ? "profile-save-btn" : "profile-edit-btn"}
             onPress={() => (editing ? save() : setEditing(true))}
             style={styles.editBtn}
             disabled={saving}

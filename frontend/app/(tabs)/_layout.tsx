@@ -27,6 +27,7 @@ export default function TabsLayout() {
         name="connect"
         options={{
           title: "Connect",
+          tabBarButtonTestID: "tab-connect",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
@@ -36,6 +37,7 @@ export default function TabsLayout() {
         name="chats"
         options={{
           title: "Chats",
+          tabBarButtonTestID: "tab-chats",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubbles" size={size} color={color} />
           ),
@@ -45,6 +47,7 @@ export default function TabsLayout() {
         name="moments"
         options={{
           title: "Moments",
+          tabBarButtonTestID: "tab-moments",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="planet" size={size} color={color} />
           ),
