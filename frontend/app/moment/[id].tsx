@@ -37,7 +37,6 @@ export default function MomentDetail() {
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(
     null,
   );
-  const [showAuthorBar, setShowAuthorBar] = useState(false);
   const [translation, setTranslation] = useState<string | null>(null);
   const [translating, setTranslating] = useState(false);
   const { user } = useAuth();
@@ -130,7 +129,7 @@ export default function MomentDetail() {
         >
           <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
         </Pressable>
-        {showAuthorBar && moment?.author ? (
+        {moment?.author ? (
           <Pressable
             testID="moment-detail-header-author"
             style={styles.headerAuthor}
@@ -393,6 +392,18 @@ const makeStyles = (colors: ThemeColors) =>
     fontFamily: fonts.display,
     fontSize: 20,
     color: colors.onSurface,
+  },
+  headerAuthor: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  headerAuthorName: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 16,
+    color: colors.onSurface,
+    flexShrink: 1,
   },
   center: {
     flex: 1,

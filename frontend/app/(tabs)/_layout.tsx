@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/src/context/ThemeContext";
 import { useChatSocket } from "@/src/hooks/use-chat-socket";
@@ -10,6 +11,7 @@ import { api, Conversation } from "@/src/utils/api";
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [unread, setUnread] = useState(0);
 
   const loadUnread = useCallback(async () => {
@@ -49,7 +51,11 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.divider,
-          ...(Platform.OS === "ios" ? {} : { height: 62, paddingBottom: 8 }),
+          // Always sit above the device's bottom bar (gesture pill / nav buttons).
+          height:
+            54 + Math.max(insets.bottom, Platform.OS === "ios" ? 0 : 8),
+          paddingBottom: Math.max(insets.bottom, 8),
+          paddingTop: 6,
         },
       }}
     >

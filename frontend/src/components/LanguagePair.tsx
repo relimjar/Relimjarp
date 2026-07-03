@@ -37,7 +37,7 @@ export const LanguagePair: React.FC<LanguagePairProps> = ({
           key={`t-${code}`}
           style={[styles.chip, styles.nativeChip, compact && styles.chipCompact]}
         >
-          <FlagIcon code={code} size={flagSize} />
+          {!compact && <FlagIcon code={code} size={flagSize} />}
           <Text style={[styles.chipText, compact && styles.chipTextCompact]}>
             {code.toUpperCase()}
           </Text>
@@ -58,7 +58,7 @@ export const LanguagePair: React.FC<LanguagePairProps> = ({
             compact && styles.chipCompact,
           ]}
         >
-          <FlagIcon code={code} size={flagSize} />
+          {!compact && <FlagIcon code={code} size={flagSize} />}
           <Text
             style={[
               styles.chipText,

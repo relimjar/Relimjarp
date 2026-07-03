@@ -325,11 +325,8 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         break;
       case "call_unavailable":
-        if (current?.status === "outgoing") {
-          cleanupMedia();
-          setCall(null);
-          notify("Offline", `${current.peer.name} is offline right now.`);
-        }
+        // Peer is offline right now — keep ringing silently. If they don't
+        // come online and answer, the normal ring timeout ends the call.
         break;
       case "call_decline":
       case "call_end":

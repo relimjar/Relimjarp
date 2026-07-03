@@ -131,3 +131,10 @@ Note: Daily streak (backend touch_streak + profile/user page display) already ex
 ✅ backend/requirements.txt: added `--extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/` first line (emergentintegrations==0.2.0 is NOT on public PyPI — sandbox had it in /etc/pip.conf but cloud builder may not)
 ✅ CLEAN-ROOM build simulation passed: fresh dir + yarn install --frozen-lockfile (preinstall check-pkg OK, patch-package ✔) + npx expo export --platform web EXIT 0
 ℹ️ troubleshoot_agent suspected @config-plugins/react-native-webrtc plugin, but `npx expo config --type prebuild` evaluates cleanly (exit 0) — plugin KEPT (required for native calling builds)
+
+## Iteration 13 UI fixes (this session — verified via screenshots)
+✅ Tab bar respects device bottom bar: (tabs)/_layout.tsx uses useSafeAreaInsets → height 54+insets.bottom, paddingBottom max(insets.bottom, 8) — no overlap on any phone
+✅ Calling offline users keeps ringing: CallContext ignores call_unavailable (no "offline" alert); 45s ring timeout still applies
+✅ LanguagePair compact mode: flags removed entirely (codes only) — used on Connect cards AND profile card (compact prop added there)
+✅ Moment detail header always shows author (avatar+name+VIP row) instead of "Moment" title; missing headerAuthor/headerAuthorName styles added; removed dead showAuthorBar state
+✅ Profile About section: removed set-once Country/Age/Gender rows + their states/payload fields (only About me bio + Interests remain; these fields are set at signup only)

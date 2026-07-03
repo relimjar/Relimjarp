@@ -44,7 +44,6 @@ export default function Profile() {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(user?.name || "");
   const [bio, setBio] = useState(user?.bio || "");
-  const [country, setCountry] = useState(user?.country || "");
   const [nativeLang, setNativeLang] = useState(user?.native_language || null);
   const [teachLangs, setTeachLangs] = useState<string[]>(
     user?.teach_languages || [],
@@ -58,7 +57,6 @@ export default function Profile() {
   );
   const [proficiency, setProficiency] = useState(user?.proficiency || null);
   const [interests, setInterests] = useState<string[]>(user?.interests || []);
-  const [age, setAge] = useState(user?.age ? String(user.age) : "");
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -67,7 +65,6 @@ export default function Profile() {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [usernameBusy, setUsernameBusy] = useState(false);
   const [visitorCount, setVisitorCount] = useState<number | null>(null);
-  const [gender, setGender] = useState(user?.gender || null);
 
   const saveUsername = async () => {
     if (usernameBusy) return;
@@ -219,19 +216,15 @@ export default function Profile() {
   const save = async () => {
     setSaving(true);
     try {
-      const ageNum = parseInt(age, 10);
       const updated = await api.put<User>("/users/me", {
         name: name.trim() || user.name,
         bio,
-        country,
         native_language: nativeLang,
         teach_languages: teachLangs.filter((c) => c !== nativeLang),
         learning_languages: learningLangs,
         learning_language: learningLangs[0] || null,
         proficiency,
-        gender,
         interests,
-        age: !Number.isNaN(ageNum) && ageNum >= 13 && ageNum <= 120 ? ageNum : undefined,
       });
       setUser(updated);
       setEditing(false);
@@ -320,6 +313,7 @@ export default function Profile() {
           </Pressable>
           <Text style={styles.email}>{user.email}</Text>
           <LanguagePair
+            compact
             native={editing ? nativeLang : user.native_language}
             teach={editing ? teachLangs : user.teach_languages}
             learning={
@@ -504,107 +498,6 @@ export default function Profile() {
             <Text style={styles.bodyText}>
               {user.bio || "No bio yet. Tap Edit to add one!"}
             </Text>
-          )}
-        </View>
-
-        <View>
-          <Text style={styles.sectionTitle}>Country</Text>
-          {editing && !user.country ? (
-            <TextInput
-              testID="profile-country-input"
-              style={styles.input}
-              value={country}
-              onChangeText={setCountry}
-              placeholder="Where are you from?"
-              placeholderTextColor={colors.onSurfaceSecondary}
-            />
-          ) : (
-            <View style={styles.lockedRow}>
-              <Text style={styles.bodyText}>{user.country || "Not set"}</Text>
-              {user.country ? (
-                <Ionicons
-                  name="lock-closed"
-                  size={13}
-                  color={colors.onSurfaceSecondary}
-                />
-              ) : null}
-            </View>
-          )}
-        </View>
-
-        <View>
-          <Text style={styles.sectionTitle}>Age</Text>
-          {editing && !user.age ? (
-            <TextInput
-              testID="profile-age-input"
-              style={styles.input}
-              value={age}
-              onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ""))}
-              placeholder="Your age"
-              placeholderTextColor={colors.onSurfaceSecondary}
-              keyboardType="number-pad"
-              maxLength={3}
-            />
-          ) : (
-            <View style={styles.lockedRow}>
-              <Text style={styles.bodyText}>
-                {user.age ? `${user.age} years old` : "Not set"}
-              </Text>
-              {user.age ? (
-                <Ionicons
-                  name="lock-closed"
-                  size={13}
-                  color={colors.onSurfaceSecondary}
-                />
-              ) : null}
-            </View>
-          )}
-        </View>
-
-        <View>
-          <Text style={styles.sectionTitle}>Gender</Text>
-          {editing && !user.gender ? (
-            <View style={styles.chipWrap}>
-              {(["male", "female"] as const).map((g) => {
-                const active = gender === g;
-                return (
-                  <Pressable
-                    key={g}
-                    testID={`profile-gender-${g}`}
-                    onPress={() => setGender(g)}
-                    style={[styles.chip, active && styles.chipActive]}
-                  >
-                    <Ionicons
-                      name={g}
-                      size={14}
-                      color={g === "male" ? "#3B82F6" : "#EC4899"}
-                    />
-                    <Text
-                      style={[styles.chipText, active && styles.chipTextActive]}
-                    >
-                      {g === "male" ? "Male" : "Female"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.lockedRow}>
-              <Text style={styles.bodyText}>
-                {user.gender
-                  ? user.gender === "male"
-                    ? "Male"
-                    : "Female"
-                  : "Not set"}
-              </Text>
-              {user.gender ? (
-                <Ionicons
-                  name="lock-closed"
-                  size={13}
-                  color={colors.onSurfaceSecondary}
-                />
-              ) : null}
-            </View>
           )}
         </View>
 
