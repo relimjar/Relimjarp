@@ -38,6 +38,7 @@ export default function MomentDetail() {
     null,
   );
   const [translation, setTranslation] = useState<string | null>(null);
+  const [showAuthorBar, setShowAuthorBar] = useState(false);
   const [translating, setTranslating] = useState(false);
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -129,7 +130,7 @@ export default function MomentDetail() {
         >
           <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
         </Pressable>
-        {moment?.author ? (
+        {showAuthorBar && moment?.author ? (
           <Pressable
             testID="moment-detail-header-author"
             style={styles.headerAuthor}
