@@ -26,12 +26,14 @@ const TYPE_META: Record<
   like: { icon: "heart", color: "#EF4444", label: "liked your moment" },
   comment: { icon: "chatbubble", color: "#0EA5E9", label: "commented on your moment" },
   reply: { icon: "return-down-forward", color: "#8B5CF6", label: "replied to your comment" },
+  follow: { icon: "person-add", color: "#22C55E", label: "started following you" },
+  visit: { icon: "eye", color: "#F59E0B", label: "viewed your profile" },
 };
 
 export default function Notifications() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { markMomentsRead } = useNotifications();
+  const { markAllRead } = useNotifications();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,9 +44,9 @@ export default function Notifications() {
       .then((d) => setItems(d.notifications))
       .finally(() => {
         setLoading(false);
-        markMomentsRead();
+        markAllRead();
       });
-  }, [markMomentsRead]);
+  }, [markAllRead]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="notifications-screen">
@@ -77,19 +79,25 @@ export default function Notifications() {
               />
               <Text style={styles.emptyTitle}>No notifications yet</Text>
               <Text style={styles.emptySub}>
-                Likes, comments and replies on your moments will show up here.
+                Likes, comments, new followers and profile visits will show up
+                here.
               </Text>
             </View>
           }
           renderItem={({ item }) => {
             const meta = TYPE_META[item.type] || TYPE_META.comment;
+            const isProfileType = item.type === "follow" || item.type === "visit";
             return (
               <Pressable
                 testID={`notification-row-${item.id}`}
                 style={[styles.row, !item.read && styles.rowUnread]}
-                onPress={() =>
-                  item.moment_id && router.push(`/moment/${item.moment_id}`)
-                }
+                onPress={() => {
+                  if (isProfileType && item.actor?.id) {
+                    router.push(`/user/${item.actor.id}`);
+                  } else if (item.moment_id) {
+                    router.push(`/moment/${item.moment_id}`);
+                  }
+                }}
               >
                 <View>
                   <Avatar

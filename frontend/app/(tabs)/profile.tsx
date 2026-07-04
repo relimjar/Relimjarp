@@ -56,7 +56,7 @@ const FEATURES: {
 export default function Profile() {
   const { user, setUser, logout } = useAuth();
   const { colors, mode, toggleMode } = useTheme();
-  const { markProfileRead } = useNotifications();
+  const { markProfileRead, momentsUnread, profileUnread } = useNotifications();
   const router = useRouter();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
@@ -488,21 +488,32 @@ export default function Profile() {
 
         {/* Feature grid */}
         <View style={styles.gridCard}>
-          {FEATURES.map((f) => (
-            <Pressable
-              key={f.key}
-              testID={`feature-${f.key}`}
-              style={styles.gridItem}
-              onPress={() => router.push(f.route as never)}
-            >
-              <View style={[styles.gridIcon, { backgroundColor: f.color }]}>
-                <Ionicons name={f.icon} size={20} color="#FFFFFF" />
-              </View>
-              <Text style={styles.gridLabel} numberOfLines={1}>
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
+          {FEATURES.map((f) => {
+            const badgeCount =
+              f.key === "alerts" ? momentsUnread + profileUnread : 0;
+            return (
+              <Pressable
+                key={f.key}
+                testID={`feature-${f.key}`}
+                style={styles.gridItem}
+                onPress={() => router.push(f.route as never)}
+              >
+                <View style={[styles.gridIcon, { backgroundColor: f.color }]}>
+                  <Ionicons name={f.icon} size={20} color="#FFFFFF" />
+                  {badgeCount > 0 && (
+                    <View style={styles.gridBadge}>
+                      <Text style={styles.gridBadgeText}>
+                        {badgeCount > 9 ? "9+" : badgeCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.gridLabel} numberOfLines={1}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Learning points */}
@@ -1137,6 +1148,26 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
+      position: "relative",
+    },
+    gridBadge: {
+      position: "absolute",
+      top: -4,
+      right: -4,
+      minWidth: 17,
+      height: 17,
+      borderRadius: 9,
+      paddingHorizontal: 3,
+      backgroundColor: "#EF4444",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: colors.surface,
+    },
+    gridBadgeText: {
+      fontFamily: fonts.textBold,
+      fontSize: 9,
+      color: "#FFFFFF",
     },
     gridLabel: {
       fontFamily: fonts.textSemi,

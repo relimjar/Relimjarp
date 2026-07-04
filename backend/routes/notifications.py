@@ -12,14 +12,16 @@ MOMENTS_TYPES = ["like", "comment", "reply"]
 PROFILE_TYPES = ["follow", "visit"]
 
 
+ALL_TYPES = MOMENTS_TYPES + PROFILE_TYPES
+
+
 @router.get("")
 async def list_notifications(current_user: CurrentUser):
-    """Moment-interaction activity feed (likes/comments/replies)."""
+    """Combined activity feed: moment likes/comments/replies + new
+    followers/profile visitors — everything shown together, newest first."""
     uid = current_user["_id"]
     docs = (
-        await notifications_col.find(
-            {"user_id": uid, "type": {"$in": MOMENTS_TYPES}}
-        )
+        await notifications_col.find({"user_id": uid, "type": {"$in": ALL_TYPES}})
         .sort("created_at", -1)
         .to_list(50)
     )
@@ -41,7 +43,7 @@ async def list_notifications(current_user: CurrentUser):
             }
         )
     unread = await notifications_col.count_documents(
-        {"user_id": uid, "read": False, "type": {"$in": MOMENTS_TYPES}}
+        {"user_id": uid, "read": False, "type": {"$in": ALL_TYPES}}
     )
     return {"unread": unread, "notifications": items}
 

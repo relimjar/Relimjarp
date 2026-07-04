@@ -1,0 +1,51 @@
+{
+  "summary": "Tested iteration 13 (Voice Room chat input UX, audience alignment, join announcement banner, unified notifications feed). Backend: 5/5 new pytest cases passed (unified feed combining follow/like, mark-all-read clearing both counters, category-scoped read still works, room join broadcast contract). Frontend: chat input focus/blur behavior works exactly as specified (icons hide on focus, send button shows/hides correctly, icons return on blur), audience list confirmed left-aligned with smaller avatars, join announcement banner appears correctly for other members and auto-dismisses after ~3s. Found ONE real integration bug: the Profile page's 'Notifications' grid tile badge (feature-alerts) can never reflect profile_unread (follow/visit) counts because Profile screen's own useFocusEffect calls markProfileRead() immediately on every mount/focus, clearing profile_unread to 0 before the badge can render it - user must land on the Profile tab to even see the tile, but doing so already wipes the count it's supposed to display.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Profile grid tile badge (feature-alerts) showing momentsUnread+profileUnread",
+        "issue": "Profile.tsx's useFocusEffect calls markProfileRead() on every focus of the Profile tab (pre-existing behavior to clear the 'Me' tab red dot). This resets profileUnread to 0 client-side and server-side BEFORE the grid tile (which lives on the same Profile screen) can render the combined count. Verified via test: backend confirmed profile_unread=1 via API, but after logging in and landing on Profile tab, the feature-alerts badge showed no number for the profile-only case, and only showed momentsUnread values correctly (verified badge=1 for a moments-type unread). Net effect: the new combined badge feature can only ever display momentsUnread; follow/visit unread counts are invisible on this tile.",
+        "affected_testIDs": ["feature-alerts"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "verified_working": [
+    "Voice Room chat input (testID room-chat-input): on focus, all 4 icon buttons (room-mute-toggle-btn, room-tools-btn, room-shop-btn, room-gift-btn) hide and only Send (room-chat-send-btn) is visible; input grows visually (padding/font increase per inputFocused style); on blur, icons return and Send hides if draft is empty",
+    "Audience/listener list (room-listener-{id}): left-aligned (justifyContent flex-start) confirmed visually, avatars are 36px (smaller than stage's 56px), verified via screenshot",
+    "Join announcement (room-join-announcement): triggered a real cross-user join (hana joining a room mei was already in) - banner 'Hana Kim joined the room 🎉' appeared near top of stage area for mei (the existing member) and auto-dismissed after ~3s as expected. Code review confirms event.joined.id !== user?.id guard so the joining user itself would not see their own banner (not directly UI-testable without a second live browser session, but logic is correct)",
+    "GET /api/notifications: combined follow + like notifications verified in same response, sorted created_at desc, actor info correct",
+    "POST /api/notifications/read (no category): clears both moments_unread and profile_unread to 0, verified via GET /api/notifications/counts",
+    "POST /api/notifications/read?category=moments/profile: scoping unchanged, still works",
+    "Notifications screen (/notifications): follow rows show green person-add icon + 'started following you' label, visit rows show orange eye icon + 'viewed your profile' label, both rendered correctly interleaved with like/comment types newest-first",
+    "Regression sanity: Chats/Moments tab badges rendering with correct counts, login flow, room entry, gift/quick-reply UI all functioning with no visible regressions"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iteration13_notifications_unified.py",
+    "/app/test_reports/pytest/iteration13.xml"
+  ],
+  "action_items": [
+    "Fix Profile grid tile badge vs Me-tab-dot conflict: either (a) don't call markProfileRead() automatically in Profile.tsx's useFocusEffect (require explicit tap on the Notifications tile instead, similar to how Moments tab badge only clears when the Notifications screen itself is opened), or (b) capture profileUnread into a local snapshot state before calling markProfileRead so the badge can render the pre-clear value momentarily, or (c) redesign so the grid tile badge is driven by a separate value that isn't auto-cleared by Profile focus.",
+    "Not tested directly in this pass: the joining user (hana) does NOT see their own join banner - this was verified only via code review (event.joined.id !== user?.id check in room/[id].tsx), not via a live two-browser-session UI test. Recommend a follow-up multi-session test if higher confidence is needed."
+  ],
+  "critical_code_review_comments": [
+    "routes/notifications.py and routes/rooms.py are clean, async, properly exclude Mongo _id via explicit field mapping, and the join announcement broadcast (broadcast_room with extra={'joined': user_card(current_user)}) is well-scoped to only fire when a NEW member joins (uid not in doc['members'] check).",
+    "room/[id].tsx join announcement logic correctly guards against showing the banner to the user who just joined (event.joined.id !== user?.id) and uses a keyed timeout to avoid stale-closure dismissal bugs (checks cur?.key === key before clearing).",
+    "Profile.tsx's markProfileRead() being fired unconditionally in useFocusEffect (line 80) is the root cause of the badge bug described above - this line was presumably written for the previous round's 'Me tab dot' feature and wasn't reconciled with this round's new combined-badge requirement."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration13_notifications_unified.py (new pytest file)"
+  ],
+  "success_rate": {"backend": "100% (5/5 new tests)", "frontend": "~90% (1 integration bug found in profile badge combined-count feature; all other new-feature flows verified working)"},
+  "seed_data_creation": "Created TEST_ prefixed moments for like-notification testing; triggered follow/unfollow toggles between mei and diego; created and ended a TEST_room_ voice room for the join-broadcast contract test.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Voice Room id used for join-announcement UI test: d7b002ac-0222-4fc4-9c24-a6e236ecb71e (Mei Lin's 'Gift Test Room', is_live). Mei's user id: a803c385-e3a9-459c-afd6-8273b1881564. The profile badge bug is the only blocking finding this round - once main agent decides on a fix approach for the markProfileRead()-vs-badge race, a quick retest of feature-alerts badge value after a fresh follow/visit (without visiting Profile tab first) would confirm the fix.",
+  "rca_of_issue": "Profile.tsx line ~80: `useFocusEffect(useCallback(() => { markProfileRead(); ... }, [setUser, markProfileRead]))` runs on every mount/focus of the Profile screen. markProfileRead() synchronously sets profileUnread state to 0 in NotificationsContext AND fires POST /notifications/read?category=profile. Since the Notifications grid tile (feature-alerts, badgeCount = momentsUnread + profileUnread) is rendered on this same screen, by the time React renders the tile, profileUnread has already been reset to 0 in the same effect pass - there's no frame where the pre-existing profile_unread count is visible to the user on this screen. This is a logic/ordering bug, not a data or network issue."
+}

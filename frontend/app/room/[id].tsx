@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
 
 import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
@@ -63,6 +64,11 @@ export default function RoomScreen() {
   const [handModalOpen, setHandModalOpen] = useState(false);
   const [audienceModalOpen, setAudienceModalOpen] = useState(false);
   const [quickRepliesVisible, setQuickRepliesVisible] = useState(true);
+  const [inputFocused, setInputFocused] = useState(false);
+  const [joinAnnouncement, setJoinAnnouncement] = useState<{
+    key: string;
+    text: string;
+  } | null>(null);
   const [isFollowingHost, setIsFollowingHost] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [gifts, setGifts] = useState<RoomGift[]>([]);
@@ -125,6 +131,16 @@ export default function RoomScreen() {
     const unsub = subscribe((event: any) => {
       if (event.type === "room_update" && event.room?.id === id) {
         setRoom(event.room);
+        if (event.joined && event.joined.id !== user?.id) {
+          const key = `${event.joined.id}-${Date.now()}`;
+          setJoinAnnouncement({
+            key,
+            text: `${event.joined.name} joined the room 🎉`,
+          });
+          setTimeout(() => {
+            setJoinAnnouncement((cur) => (cur?.key === key ? null : cur));
+          }, 3000);
+        }
       } else if (event.type === "room_message" && event.message?.room_id === id) {
         setMessages((prev) =>
           prev.some((m) => m.id === event.message.id)
@@ -137,7 +153,7 @@ export default function RoomScreen() {
       }
     });
     return unsub;
-  }, [id, subscribe, router]);
+  }, [id, subscribe, router, user?.id]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -447,7 +463,7 @@ export default function RoomScreen() {
       <Avatar
         name={member.name}
         url={member.avatar_url}
-        size={44}
+        size={36}
         flagCode={countryToCode(member.country)}
         online
       />
@@ -536,6 +552,21 @@ export default function RoomScreen() {
             </Text>
             <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
           </Pressable>
+        )}
+
+        {joinAnnouncement && (
+          <Animated.View
+            key={joinAnnouncement.key}
+            entering={FadeInDown.duration(220)}
+            exiting={FadeOutUp.duration(220)}
+            style={styles.joinAnnouncement}
+            testID="room-join-announcement"
+          >
+            <Ionicons name="megaphone" size={13} color="#FFFFFF" />
+            <Text style={styles.joinAnnouncementText} numberOfLines={1}>
+              {joinAnnouncement.text}
+            </Text>
+          </Animated.View>
         )}
 
         <KeyboardAvoidingView
@@ -729,7 +760,7 @@ export default function RoomScreen() {
           <View style={styles.controls}>
             <TextInput
               testID="room-chat-input"
-              style={styles.input}
+              style={[styles.input, inputFocused && styles.inputFocused]}
               placeholder={
                 room.chat_muted && !isHost
                   ? "Chat muted by host"
@@ -740,53 +771,59 @@ export default function RoomScreen() {
               onChangeText={setDraft}
               editable={!(room.chat_muted && !isHost)}
               onSubmitEditing={sendMessage}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
               returnKeyType="send"
             />
-            <Pressable
-              testID="room-mute-toggle-btn"
-              style={styles.iconBtn}
-              onPress={() => {
-                if (isHost) toggleChatMute();
-                else
-                  Alert.alert(
-                    "Room chat",
-                    room.chat_muted
-                      ? "Chat is muted by the host."
-                      : "Chat is open.",
-                  );
-              }}
-            >
-              <Ionicons
-                name={room.chat_muted ? "chatbox-outline" : "chatbox-ellipses-outline"}
-                size={19}
-                color={room.chat_muted ? "#F87171" : "rgba(255,255,255,0.75)"}
-              />
-            </Pressable>
-            <Pressable
-              testID="room-tools-btn"
-              style={styles.iconBtn}
-              onPress={() => setToolsOpen(true)}
-            >
-              <Ionicons name="grid-outline" size={19} color="rgba(255,255,255,0.75)" />
-              <View style={styles.newBadge}>
-                <Text style={styles.newBadgeText}>NEW</Text>
-              </View>
-            </Pressable>
-            <Pressable
-              testID="room-shop-btn"
-              style={styles.iconBtn}
-              onPress={() => router.push("/market")}
-            >
-              <Ionicons name="storefront-outline" size={19} color="rgba(255,255,255,0.75)" />
-            </Pressable>
-            <Pressable
-              testID="room-gift-btn"
-              style={styles.iconBtn}
-              onPress={() => openGiftModal()}
-            >
-              <Ionicons name="gift-outline" size={19} color="rgba(255,255,255,0.75)" />
-            </Pressable>
-            {draft.trim().length > 0 && (
+            {!inputFocused && (
+              <>
+                <Pressable
+                  testID="room-mute-toggle-btn"
+                  style={styles.iconBtn}
+                  onPress={() => {
+                    if (isHost) toggleChatMute();
+                    else
+                      Alert.alert(
+                        "Room chat",
+                        room.chat_muted
+                          ? "Chat is muted by the host."
+                          : "Chat is open.",
+                      );
+                  }}
+                >
+                  <Ionicons
+                    name={room.chat_muted ? "chatbox-outline" : "chatbox-ellipses-outline"}
+                    size={19}
+                    color={room.chat_muted ? "#F87171" : "rgba(255,255,255,0.75)"}
+                  />
+                </Pressable>
+                <Pressable
+                  testID="room-tools-btn"
+                  style={styles.iconBtn}
+                  onPress={() => setToolsOpen(true)}
+                >
+                  <Ionicons name="grid-outline" size={19} color="rgba(255,255,255,0.75)" />
+                  <View style={styles.newBadge}>
+                    <Text style={styles.newBadgeText}>NEW</Text>
+                  </View>
+                </Pressable>
+                <Pressable
+                  testID="room-shop-btn"
+                  style={styles.iconBtn}
+                  onPress={() => router.push("/market")}
+                >
+                  <Ionicons name="storefront-outline" size={19} color="rgba(255,255,255,0.75)" />
+                </Pressable>
+                <Pressable
+                  testID="room-gift-btn"
+                  style={styles.iconBtn}
+                  onPress={() => openGiftModal()}
+                >
+                  <Ionicons name="gift-outline" size={19} color="rgba(255,255,255,0.75)" />
+                </Pressable>
+              </>
+            )}
+            {(inputFocused || draft.trim().length > 0) && (
               <Pressable
                 testID="room-chat-send-btn"
                 style={styles.sendBtn}
@@ -1167,6 +1204,25 @@ const makeStyles = () =>
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },
+    joinAnnouncement: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      alignSelf: "center",
+      marginBottom: spacing.sm,
+      backgroundColor: "rgba(109,90,232,0.85)",
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 7,
+      maxWidth: "88%",
+    },
+    joinAnnouncementText: {
+      fontFamily: fonts.textBold,
+      fontSize: 12,
+      color: "#FFFFFF",
+      flexShrink: 1,
+    },
     handNotifyIconWrap: {
       position: "relative",
       width: 24,
@@ -1312,24 +1368,24 @@ const makeStyles = () =>
     listenerRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      justifyContent: "center",
-      gap: spacing.md,
+      justifyContent: "flex-start",
+      gap: spacing.sm,
     },
     listenerCell: {
       alignItems: "center",
       gap: 3,
-      width: 46,
+      width: 40,
     },
     listenerName: {
       fontFamily: fonts.text,
-      fontSize: 10,
+      fontSize: 9.5,
       color: "rgba(255,255,255,0.75)",
-      maxWidth: 46,
+      maxWidth: 40,
     },
     moreCircle: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 34,
+      height: 34,
+      borderRadius: 17,
       backgroundColor: "rgba(255,255,255,0.14)",
       alignItems: "center",
       justifyContent: "center",
@@ -1521,6 +1577,11 @@ const makeStyles = () =>
       fontFamily: fonts.text,
       fontSize: 13.5,
       color: "#FFFFFF",
+    },
+    inputFocused: {
+      paddingVertical: spacing.md,
+      fontSize: 14.5,
+      backgroundColor: "rgba(255,255,255,0.2)",
     },
     iconBtn: {
       width: 34,

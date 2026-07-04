@@ -25,6 +25,7 @@ interface NotificationsContextValue {
   refresh: () => void;
   markMomentsRead: () => void;
   markProfileRead: () => void;
+  markAllRead: () => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue>({
@@ -34,6 +35,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
   refresh: () => {},
   markMomentsRead: () => {},
   markProfileRead: () => {},
+  markAllRead: () => {},
 });
 
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -92,6 +94,12 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     api.post("/notifications/read?category=profile").catch(() => {});
   }, []);
 
+  const markAllRead = useCallback(() => {
+    setMomentsUnread(0);
+    setProfileUnread(0);
+    api.post("/notifications/read").catch(() => {});
+  }, []);
+
   return (
     <NotificationsContext.Provider
       value={{
@@ -101,6 +109,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         refresh,
         markMomentsRead,
         markProfileRead,
+        markAllRead,
       }}
     >
       {children}

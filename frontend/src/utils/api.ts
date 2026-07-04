@@ -156,7 +156,7 @@ export interface MarketItem {
 
 export interface AppNotification {
   id: string;
-  type: "like" | "comment" | "reply";
+  type: "like" | "comment" | "reply" | "follow" | "visit";
   moment_id: string | null;
   text: string | null;
   read: boolean;
