@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/src/context/ThemeContext";
@@ -13,6 +13,9 @@ export default function TabsLayout() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [unread, setUnread] = useState(0);
+  // Reserve room for the device's home indicator / nav bar, but keep a
+  // comfortable minimum gap so the bar never sits flush against the edge.
+  const bottomGap = Math.max(insets.bottom, 12);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -44,18 +47,33 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.onSurfaceSecondary,
+        tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontFamily: fonts.textBold,
           fontSize: 11,
         },
+        tabBarItemStyle: {
+          paddingTop: 4,
+        },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.divider,
-          // Always sit above the device's bottom bar (gesture pill / nav buttons).
-          height:
-            54 + Math.max(insets.bottom, Platform.OS === "ios" ? 0 : 8),
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 6,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          // Comfortable content height + safe-area gap (min 12) so the bar
+          // stays lifted above the home indicator on every device.
+          height: 56 + bottomGap,
+          paddingBottom: bottomGap,
+          paddingTop: 8,
+          ...Platform.select({
+            ios: {
+              shadowColor: "#0F172A",
+              shadowOpacity: 0.06,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: -3 },
+            },
+            android: { elevation: 12 },
+            default: {},
+          }),
         },
       }}
     >
