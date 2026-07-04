@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -24,7 +25,9 @@ import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { LikersRow } from "@/src/components/LikersRow";
+import { SpeakingBars } from "@/src/components/SpeakingBars";
 import { countryToCode } from "@/src/constants/countries";
+import { langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
@@ -113,6 +116,18 @@ export default function Moments() {
       load();
     }
   };
+
+  const joinRoomFromMoment = async (roomId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await api.post(`/rooms/${roomId}/join`);
+      router.push(`/room/${roomId}`);
+    } catch {
+      Alert.alert("Room ended", "This voice room is no longer live.");
+      load();
+    }
+  };
+
 
   const pickPhoto = async () => {
     const current = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -274,7 +289,59 @@ export default function Moments() {
                   </Text>
                 </View>
               ) : null}
-              {item.image_url ? (
+              {item.room ? (
+                <Pressable
+                  testID={`moment-room-card-${item.id}`}
+                  disabled={!item.room.is_live}
+                  onPress={() => joinRoomFromMoment(item.room!.id)}
+                >
+                  <LinearGradient
+                    colors={
+                      item.room.is_live
+                        ? ["#6D5AE8", "#4B3F87"]
+                        : ["#9CA3AF", "#6B7280"]
+                    }
+                    style={styles.roomCard}
+                  >
+                    <View style={styles.roomCardTop}>
+                      {item.room.is_live ? (
+                        <View style={styles.roomLiveBadge}>
+                          <SpeakingBars />
+                          <Text style={styles.roomLiveText}>LIVE</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.roomLiveBadge}>
+                          <Ionicons name="mic-off" size={11} color="#FFFFFF" />
+                          <Text style={styles.roomLiveText}>ROOM ENDED</Text>
+                        </View>
+                      )}
+                      {item.room.language ? (
+                        <View style={styles.roomLangBadge}>
+                          <FlagIcon code={item.room.language} size={11} />
+                          <Text style={styles.roomLangText}>
+                            {langName(item.room.language)}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.roomCardTitle} numberOfLines={2}>
+                      {item.room.title || "Voice room"}
+                    </Text>
+                    <View style={styles.roomCardBottom}>
+                      <Ionicons name="people" size={13} color="rgba(255,255,255,0.85)" />
+                      <Text style={styles.roomCardMembers}>
+                        {item.room.member_count || 0}{" "}
+                        {item.room.is_live ? "listening now" : "were in this room"}
+                      </Text>
+                      {item.room.is_live && (
+                        <View style={styles.roomJoinBtn}>
+                          <Text style={styles.roomJoinText}>Join</Text>
+                        </View>
+                      )}
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+              ) : item.image_url ? (
                 <Image
                   testID={`moment-image-${item.id}`}
                   source={{ uri: assetUrl(item.image_url)! }}
@@ -467,7 +534,7 @@ const makeStyles = (colors: ThemeColors) =>
   },
   headerTitle: {
     fontFamily: fonts.display,
-    fontSize: 28,
+    fontSize: 22,
     color: colors.onSurface,
   },
   headerSub: {
@@ -541,6 +608,74 @@ const makeStyles = (colors: ThemeColors) =>
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceTertiary,
   },
+  roomCard: {
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  roomCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  roomLiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "rgba(0,0,0,0.28)",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  roomLiveText: {
+    fontFamily: fonts.textBold,
+    fontSize: 10,
+    color: "#FFFFFF",
+    letterSpacing: 0.6,
+  },
+  roomLangBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  roomLangText: {
+    fontFamily: fonts.textBold,
+    fontSize: 10,
+    color: "#FFFFFF",
+  },
+  roomCardTitle: {
+    fontFamily: fonts.displaySemi,
+    fontSize: 16,
+    color: "#FFFFFF",
+    lineHeight: 22,
+  },
+  roomCardBottom: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  roomCardMembers: {
+    flex: 1,
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    color: "rgba(255,255,255,0.85)",
+  },
+  roomJoinBtn: {
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+  },
+  roomJoinText: {
+    fontFamily: fonts.textBold,
+    fontSize: 12,
+    color: "#4B3F87",
+  },
+
   actionRow: {
     flexDirection: "row",
     gap: spacing.xl,

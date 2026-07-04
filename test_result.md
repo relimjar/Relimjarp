@@ -254,3 +254,161 @@ agent_communication:
       message: "CRITICAL BUG REPORT: App not opening / fix it so the app can be entered. Root cause found and fixed: leftover orphaned code fragment in /app/frontend/app/room/[id].tsx causing JavaScript syntax error that crashed Metro bundler. This has been removed and bundler now compiles cleanly. Please verify app is fully functional end-to-end: (1) Load app root URL - confirm login/auth screen renders (no blank white screen, no error overlay). (2) Log in with mei@demo.com / Demo1234! - confirm login succeeds and main app (tab bar) loads. (3) Navigate to Connect tab - verify header shows 'Connect' (not 'Find Partners'), no VIP chip visible, only one icon button (filter/options) on right, partner cards with paper-plane icon (not chat-bubble). (4) Navigate to Chat tab - verify header shows 'Chat' (not 'Language Talks'), no hamburger/menu icon on left, no VIP chip, single '+' button with colored circular background on right. (5) Navigate to Profile -> Edit Profile - confirm loads without crashing, check for 'Proficiency' section with dot-based level indicators. (6) From Connect tab or wherever 'Voice Rooms' is accessible, create or join a voice room and confirm room screen loads without white screen or crash (dark purple gradient background, member grid, chat area, bottom controls). Report any console errors seen."
     - agent: "testing"
       message: "✅ CRITICAL BUG FIX VERIFIED - APP FULLY FUNCTIONAL (6/6 verification points passed). Test results with mei@demo.com / Demo1234!: (1) ✅ App loads successfully - welcome screen renders, no blank white screen, no error overlay, Metro bundler compiles cleanly. (2) ✅ Login succeeds - navigated to main app with tab bar visible. (3) ✅ Connect tab verified - header shows 'Connect' (not 'Find Partners'), no VIP chip in header, filter/options icon button on right, partner cards display with paper-plane icon for messaging. Found 5 partner cards (Dada, Didi, Demo User, Emma Wilson, Amélie Laurent). (4) ✅ Chat tab verified - header shows 'Chat' (not 'Language Talks'), no hamburger/menu icon on left, no VIP chip, '+' button with colored circular background on right. (5) ✅ Profile tab loads successfully - user profile displays correctly (Mei Lin, VIP member, 1000 coins, 1 day streak, 0 visitors, 1 moment). Edit Profile page accessible and loads without crashing. Proficiency section present with dot-based level indicators for learning languages. (6) ✅ Voice Room screen verified - clicked on 'Love' voice room, screen loads without white screen or crash. Dark purple gradient background visible, member grid present (Didi on stage, You in audience), chat area with welcome messages and quick replies visible, bottom controls present (hand/mic button, message input, chat/tools/shop/gift icons). No console errors detected. ALL VERIFICATION POINTS PASSED. The 'app not opening' bug is COMPLETELY RESOLVED. App is fully functional end-to-end."
+
+## Test Run — Voice Room + Moments Integration Features
+user_problem_statement: Test the new Voice Room + Moments integration features including gift catalog, room creation with moments sharing, room ending, private rooms, gift sending, and chat mute functionality.
+
+backend:
+  - task: "GET /api/rooms/gift-catalog - return coins and 4 gifts"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Endpoint returns user's coin balance and catalog of 4 gifts (rose, heart, star, crown) with prices."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: GET /api/rooms/gift-catalog with auth returns {coins:1000, gifts:[...]} with 4 gifts (Rose 🌹 10 coins, Heart 💖 20 coins, Star ⭐ 30 coins, Crown 👑 100 coins). All fields present and correct."
+  
+  - task: "POST /api/rooms - create room with share_to_moments integration"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Room creation with share_to_moments=true creates a moment post. Response includes topic, mode, is_private, background, host, member_count."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: POST /api/rooms with {title:'Test Room ABC', language:'en', topic:'Small Talk', mode:'chat', is_private:false, background:1, share_to_moments:true} returns 201 with all required fields. Verified: topic='Small Talk', mode='chat', is_private=false, background=1, member_count=1, host present with correct user data."
+  
+  - task: "GET /api/rooms - list rooms with all fields"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "List rooms endpoint returns array with topic, mode, is_private, background, members_preview, member_count fields."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: GET /api/rooms returns array of rooms. Created room appears in list with all required fields: topic, mode, is_private, background, members_preview (array), member_count. Found 3 rooms total."
+  
+  - task: "GET /api/moments - verify moment created with live room"
+    implemented: true
+    working: true
+    file: "backend/routes/moments.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "When room created with share_to_moments=true, a moment is created with room field showing is_live=true, title, member_count."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: GET /api/moments shows new moment with room field. Verified: room.is_live=true, room.title='Test Room ABC', room.member_count=1. Moment text includes room title. Room data computed live at read-time."
+  
+  - task: "POST /api/rooms/{room_id}/end - end room as host"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Host can end room, sets is_live=false. Only host can end room (403 for others)."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: POST /api/rooms/{room_id}/end as host returns 200 with {ok:true}. Room successfully ended."
+  
+  - task: "GET /api/moments - verify room ended state (is_live=false)"
+    implemented: true
+    working: true
+    file: "backend/routes/moments.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "After room ends, moment's room field shows is_live=false. Room data computed live, not stored in moment."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: GET /api/moments after ending room shows same moment with room.is_live=false. Other room detail fields absent (only id and is_live present). Correctly reflects room ended state computed at read-time."
+  
+  - task: "Private room with share_to_moments - no moment created"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Private rooms (is_private=true) should NOT create moments even if share_to_moments=true."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Created private room with is_private=true and share_to_moments=true. Verified no new moment created (moments count unchanged from 7 to 7). Private room correctly excluded from moments feed."
+  
+  - task: "POST /api/rooms/{room_id}/gift - send gift and verify top_gifters"
+    implemented: true
+    working: false
+    file: "backend/routes/rooms.py"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Gift sending: deduct coins from sender, create gift message, update top_gifters to show who sent most gifts."
+        - working: false
+          agent: "testing"
+          comment: "❌ CRITICAL BUG: Gift sending partially works but top_gifters logic is INCORRECT. Test scenario: User A sends rose (10 coins) to User B in User B's room. ✅ Coins deducted correctly (1000 -> 990). ✅ Gift message returned with type='gift'. ❌ FAILED: top_gifters shows User B (recipient) with 10 coins instead of User A (sender). ROOT CAUSE: Line 419 in /app/backend/routes/rooms.py increments gift_totals for RECIPIENT (to_user_id) instead of SENDER (current_user['_id']). FIX REQUIRED: Change line 419 from {f'gift_totals.{body.to_user_id}': gift['price']} to {f'gift_totals.{current_user[\"_id\"]}': gift['price']}. Top_gifters should track who SENT the most gifts, not who RECEIVED them."
+  
+  - task: "POST /api/rooms/{room_id}/chat-mute - toggle chat mute"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Host can toggle chat_muted. When muted, non-host members cannot send messages (403), but host can."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Host toggles chat mute successfully (chat_muted=true). Non-host member's POST /api/rooms/{room_id}/messages correctly fails with 403 'Chat has been muted by the host'. Host's own message succeeds with 201. All chat mute logic working correctly."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.5"
+  test_sequence: 4
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Voice Room + Moments integration"
+    - "Gift sending and top_gifters"
+  stuck_tasks:
+    - "POST /api/rooms/{room_id}/gift - send gift and verify top_gifters"
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "✅ VOICE ROOM + MOMENTS INTEGRATION TESTS COMPLETED (8/9 passed, 1 CRITICAL BUG found). PASSED: (1) Gift catalog returns 4 gifts with correct prices ✅ (2) Room creation with share_to_moments creates moment ✅ (3) Rooms list includes all required fields ✅ (4) Moment shows live room with is_live=true ✅ (5) Room ending works ✅ (6) Moment reflects room ended (is_live=false) ✅ (7) Private rooms don't create moments ✅ (8) Chat mute blocks non-host, allows host ✅. FAILED: (9) Gift sending top_gifters logic INCORRECT ❌. CRITICAL BUG DETAILS: When User A sends gift to User B, top_gifters shows User B (recipient) instead of User A (sender). Root cause: /app/backend/routes/rooms.py line 419 increments gift_totals for recipient (to_user_id) instead of sender (current_user['_id']). FIX: Change line 419 from '$inc': {f'gift_totals.{body.to_user_id}': gift['price']} to '$inc': {f'gift_totals.{current_user[\"_id\"]}': gift['price']}. This is a logic error - top_gifters should track who SENT gifts, not who RECEIVED them."

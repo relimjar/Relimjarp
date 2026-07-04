@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
-from db import comments_col, media_col, moments_col, notifications_col, users_col
+from db import comments_col, media_col, moments_col, notifications_col, rooms_col, users_col
 from models import CommentCreate, MomentCreate, apply_privacy, user_card
 from ws_manager import manager
 
@@ -44,6 +44,26 @@ def _card_with_presence(author: dict | None) -> dict | None:
     return apply_privacy(card, author)
 
 
+async def _room_card(room_id: str | None) -> dict | None:
+    """Live snapshot of a shared voice room for a moment card — computed at
+    read-time so it always reflects whether the room is still ongoing."""
+    if not room_id:
+        return None
+    room_doc = await rooms_col.find_one({"_id": room_id})
+    if not room_doc or not room_doc.get("is_live"):
+        return {"id": room_id, "is_live": False}
+    return {
+        "id": room_doc["_id"],
+        "title": room_doc["title"],
+        "topic": room_doc.get("topic"),
+        "mode": room_doc.get("mode", "chat"),
+        "language": room_doc["language"],
+        "languages": room_doc.get("languages") or [room_doc["language"]],
+        "member_count": len(room_doc.get("members", {})),
+        "is_live": True,
+    }
+
+
 async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -> dict:
     if author is None:
         author = await users_col.find_one({"_id": doc["user_id"]})
@@ -65,6 +85,7 @@ async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -
         "author": _card_with_presence(author),
         "text": doc["text"],
         "image_url": f"/api/media/{doc['image_id']}" if doc.get("image_id") else None,
+        "room": await _room_card(doc.get("room_id")),
         "like_count": len(likes),
         "liked_by_me": viewer_id in likes,
         "likers": likers,
@@ -90,7 +111,15 @@ async def list_moments(current_user: CurrentUser, user_id: str | None = None):
     docs = (
         await moments_col.find(
             query,
-            {"user_id": 1, "text": 1, "image_id": 1, "likes": 1, "comment_count": 1, "created_at": 1},
+            {
+                "user_id": 1,
+                "text": 1,
+                "image_id": 1,
+                "room_id": 1,
+                "likes": 1,
+                "comment_count": 1,
+                "created_at": 1,
+            },
         )
         .sort("created_at", -1)
         .to_list(100)

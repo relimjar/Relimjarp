@@ -115,11 +115,23 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface RoomCardInfo {
+  id: string;
+  title?: string;
+  topic?: string | null;
+  mode?: "chat" | "music";
+  language?: string;
+  languages?: string[];
+  member_count?: number;
+  is_live: boolean;
+}
+
 export interface Moment {
   id: string;
   author: User | null;
   text: string;
   image_url?: string | null;
+  room?: RoomCardInfo | null;
   like_count: number;
   liked_by_me: boolean;
   likers?: User[];
@@ -176,10 +188,15 @@ export interface Room {
   title: string;
   language: string;
   languages?: string[];
+  topic?: string | null;
+  mode?: "chat" | "music";
+  is_private?: boolean;
+  background?: number | null;
   host: User | null;
   host_level?: number;
   is_live?: boolean;
   members?: RoomMember[];
+  members_preview?: User[];
   member_count: number;
   chat_muted?: boolean;
   top_gifters?: TopGifter[];

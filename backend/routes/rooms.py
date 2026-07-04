@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
 from config_utils import get_app_config
-from db import room_messages_col, rooms_col, users_col
+from db import moments_col, room_messages_col, rooms_col, users_col
 from models import (
     RoomCreate,
     RoomGiftCreate,
@@ -67,6 +67,10 @@ async def room_detail(doc: dict) -> dict:
         "title": doc["title"],
         "language": doc["language"],
         "languages": doc.get("languages") or [doc["language"]],
+        "topic": doc.get("topic"),
+        "mode": doc.get("mode", "chat"),
+        "is_private": bool(doc.get("is_private")),
+        "background": doc.get("background"),
         "host": user_card(host) if host else None,
         "host_level": max(1, (host or {}).get("streak_count") or 1),
         "is_live": doc["is_live"],
@@ -78,14 +82,22 @@ async def room_detail(doc: dict) -> dict:
     }
 
 
-def room_summary(doc: dict, host: dict | None) -> dict:
+def room_summary(doc: dict, host: dict | None, user_map: dict | None = None) -> dict:
+    user_map = user_map or {}
+    member_ids = list(doc.get("members", {}).keys())
+    preview = [user_card(user_map[uid]) for uid in member_ids[:4] if uid in user_map]
     return {
         "id": doc["_id"],
         "title": doc["title"],
         "language": doc["language"],
         "languages": doc.get("languages") or [doc["language"]],
+        "topic": doc.get("topic"),
+        "mode": doc.get("mode", "chat"),
+        "is_private": bool(doc.get("is_private")),
+        "background": doc.get("background"),
         "host": user_card(host) if host else None,
         "member_count": len(doc.get("members", {})),
+        "members_preview": preview,
         "created_at": doc["created_at"],
     }
 
@@ -107,15 +119,21 @@ async def broadcast_room(doc: dict, extra: dict | None = None):
 
 @router.get("")
 async def list_rooms(current_user: CurrentUser):
-    docs = await rooms_col.find({"is_live": True}).sort("created_at", -1).to_list(50)
-    host_ids = list({d["host_id"] for d in docs})
-    hosts = (
-        await users_col.find({"_id": {"$in": host_ids}}).to_list(len(host_ids))
-        if host_ids
+    docs = (
+        await rooms_col.find({"is_live": True, "is_private": {"$ne": True}})
+        .sort("created_at", -1)
+        .to_list(50)
+    )
+    preview_ids = {d["host_id"] for d in docs}
+    for d in docs:
+        preview_ids.update(list(d.get("members", {}).keys())[:5])
+    users = (
+        await users_col.find({"_id": {"$in": list(preview_ids)}}).to_list(len(preview_ids))
+        if preview_ids
         else []
     )
-    host_map = {u["_id"]: u for u in hosts}
-    return [room_summary(d, host_map.get(d["host_id"])) for d in docs]
+    user_map = {u["_id"]: u for u in users}
+    return [room_summary(d, user_map.get(d["host_id"]), user_map) for d in docs]
 
 
 @router.post("", status_code=201)
@@ -141,6 +159,10 @@ async def create_room(body: RoomCreate, current_user: CurrentUser):
         "title": body.title.strip(),
         "language": languages[0],
         "languages": languages,
+        "topic": (body.topic or "").strip() or None,
+        "mode": body.mode,
+        "is_private": body.is_private,
+        "background": body.background,
         "host_id": current_user["_id"],
         "is_live": True,
         "members": {
@@ -151,6 +173,18 @@ async def create_room(body: RoomCreate, current_user: CurrentUser):
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await rooms_col.insert_one(doc)
+    if body.share_to_moments and not body.is_private:
+        moment_doc = {
+            "_id": str(uuid.uuid4()),
+            "user_id": current_user["_id"],
+            "text": f"🎙️ Live voice room — join and chat: \"{doc['title']}\"",
+            "image_id": None,
+            "room_id": doc["_id"],
+            "likes": [],
+            "comment_count": 0,
+            "created_at": doc["created_at"],
+        }
+        await moments_col.insert_one(moment_doc)
     return await room_detail(doc)
 
 
