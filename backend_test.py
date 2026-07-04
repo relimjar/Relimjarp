@@ -1,429 +1,341 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for LinguaConnect
-Tests newly added/modified endpoints for profile redesign
+Backend API Testing Script for LinguaConnect
+Tests auth flow, DB connectivity, and core endpoints after .env fix
 """
 
-import base64
 import requests
+import json
 import sys
+from datetime import datetime
 
-# Base URL from frontend/.env EXPO_PUBLIC_BACKEND_URL
-BASE_URL = "https://design-system-update-10.preview.emergentagent.com/api"
+# Backend URL from frontend/.env
+BASE_URL = "https://368bd428-054d-4ed0-be5c-b4aaf6dfeef5.preview.emergentagent.com"
+API_URL = f"{BASE_URL}/api"
 
 # Test credentials
-TEST_EMAIL = "fahad@lingua.app"
-TEST_PASSWORD = "Test1234!"
-SECOND_USER_ID = "star-demo-id-207"
+ADMIN_EMAIL = "admin@lingua.app"
+ADMIN_PASSWORD = "Admin1234!"
 
-# Test results tracking
-test_results = []
+# Generate unique test user email with timestamp
+timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+TEST_USER_EMAIL = f"testuser_{timestamp}@lingua.app"
+TEST_USER_PASSWORD = "TestPass123!"
+TEST_USER_NAME = "Sarah Chen"
 
+# Color codes for output
+GREEN = '\033[92m'
+RED = '\033[91m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+RESET = '\033[0m'
 
-def log_test(name, passed, details=""):
-    """Log test result"""
-    status = "✅ PASS" if passed else "❌ FAIL"
-    test_results.append({"name": name, "passed": passed, "details": details})
-    print(f"{status}: {name}")
-    if details:
-        print(f"  Details: {details}")
+def print_test(test_name):
+    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}TEST: {test_name}{RESET}")
+    print(f"{BLUE}{'='*60}{RESET}")
 
+def print_success(message):
+    print(f"{GREEN}✓ {message}{RESET}")
 
-def get_auth_token():
-    """Login and get JWT token"""
-    print("\n=== Authenticating ===")
-    url = f"{BASE_URL}/auth/login"
-    payload = {"email": TEST_EMAIL, "password": TEST_PASSWORD}
+def print_error(message):
+    print(f"{RED}✗ {message}{RESET}")
+
+def print_info(message):
+    print(f"{YELLOW}ℹ {message}{RESET}")
+
+def test_health_check():
+    """Test 1: GET /api/ - Backend health check"""
+    print_test("Backend Health Check - GET /api/")
     
     try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            token = data.get("token")
-            if token:
-                print(f"✅ Authentication successful")
-                return token
-            else:
-                print(f"❌ No token in response: {data}")
-                return None
-        else:
-            print(f"❌ Login failed: {response.status_code} - {response.text}")
-            return None
-    except Exception as e:
-        print(f"❌ Login error: {e}")
-        return None
-
-
-def test_extended_profile_update(token):
-    """Test 1: Extended profile update - PUT /api/users/me"""
-    print("\n=== Test 1: Extended Profile Update ===")
-    
-    url = f"{BASE_URL}/users/me"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # Test data with all new fields
-    profile_data = {
-        "mbti": "ENTP",
-        "blood_type": "AB",
-        "hometown": "Lahore",
-        "occupation": "Engineer",
-        "school": "MIT",
-        "places_to_go": "Japan",
-        "birthday": "1999-05-10",
-        "gender": "male"
-    }
-    
-    try:
-        response = requests.put(url, json=profile_data, headers=headers, timeout=10)
+        response = requests.get(f"{API_URL}/", timeout=10)
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text}")
         
         if response.status_code == 200:
             data = response.json()
-            
-            # Verify all fields are echoed back
-            all_match = True
-            mismatches = []
-            
-            for key, expected_value in profile_data.items():
-                actual_value = data.get(key)
-                if actual_value != expected_value:
-                    all_match = False
-                    mismatches.append(f"{key}: expected '{expected_value}', got '{actual_value}'")
-            
-            if all_match:
-                log_test(
-                    "PUT /api/users/me - Extended profile fields",
-                    True,
-                    "All fields (mbti, blood_type, hometown, occupation, school, places_to_go, birthday, gender) updated and echoed correctly"
-                )
+            if data.get("message") == "LinguaConnect API":
+                print_success("Backend is reachable and healthy")
                 return True
             else:
-                log_test(
-                    "PUT /api/users/me - Extended profile fields",
-                    False,
-                    f"Field mismatches: {', '.join(mismatches)}"
-                )
+                print_error(f"Unexpected response: {data}")
                 return False
         else:
-            log_test(
-                "PUT /api/users/me - Extended profile fields",
-                False,
-                f"HTTP {response.status_code}: {response.text}"
-            )
+            print_error(f"Expected 200, got {response.status_code}")
             return False
-            
     except Exception as e:
-        log_test("PUT /api/users/me - Extended profile fields", False, f"Exception: {e}")
+        print_error(f"Health check failed: {str(e)}")
         return False
 
-
-def test_profile_persistence(token):
-    """Test 1b: Verify profile fields persist - GET /api/auth/me"""
-    print("\n=== Test 1b: Profile Persistence ===")
-    
-    url = f"{BASE_URL}/auth/me"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    expected_values = {
-        "mbti": "ENTP",
-        "blood_type": "AB",
-        "hometown": "Lahore",
-        "occupation": "Engineer",
-        "school": "MIT",
-        "places_to_go": "Japan",
-        "birthday": "1999-05-10",
-        "gender": "male"
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            all_match = True
-            mismatches = []
-            
-            for key, expected_value in expected_values.items():
-                actual_value = data.get(key)
-                if actual_value != expected_value:
-                    all_match = False
-                    mismatches.append(f"{key}: expected '{expected_value}', got '{actual_value}'")
-            
-            if all_match:
-                log_test(
-                    "GET /api/auth/me - Profile persistence",
-                    True,
-                    "All extended profile fields persisted correctly"
-                )
-                return True
-            else:
-                log_test(
-                    "GET /api/auth/me - Profile persistence",
-                    False,
-                    f"Field mismatches: {', '.join(mismatches)}"
-                )
-                return False
-        else:
-            log_test(
-                "GET /api/auth/me - Profile persistence",
-                False,
-                f"HTTP {response.status_code}: {response.text}"
-            )
-            return False
-            
-    except Exception as e:
-        log_test("GET /api/auth/me - Profile persistence", False, f"Exception: {e}")
-        return False
-
-
-def test_my_moments_count_with_auth(token):
-    """Test 2a: GET /api/moments/mine/count with auth"""
-    print("\n=== Test 2a: My Moments Count (with auth) ===")
-    
-    url = f"{BASE_URL}/moments/mine/count"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if "count" in data and isinstance(data["count"], int):
-                log_test(
-                    "GET /api/moments/mine/count (with auth)",
-                    True,
-                    f"Returned count: {data['count']}"
-                )
-                return True
-            else:
-                log_test(
-                    "GET /api/moments/mine/count (with auth)",
-                    False,
-                    f"Invalid response format: {data}"
-                )
-                return False
-        else:
-            log_test(
-                "GET /api/moments/mine/count (with auth)",
-                False,
-                f"HTTP {response.status_code}: {response.text}"
-            )
-            return False
-            
-    except Exception as e:
-        log_test("GET /api/moments/mine/count (with auth)", False, f"Exception: {e}")
-        return False
-
-
-def test_user_moments_count_with_auth(token):
-    """Test 2b: GET /api/moments/user/{id}/count with auth"""
-    print("\n=== Test 2b: User Moments Count (with auth) ===")
-    
-    url = f"{BASE_URL}/moments/user/{SECOND_USER_ID}/count"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            if "count" in data and isinstance(data["count"], int):
-                log_test(
-                    f"GET /api/moments/user/{SECOND_USER_ID}/count (with auth)",
-                    True,
-                    f"Returned count: {data['count']}"
-                )
-                return True
-            else:
-                log_test(
-                    f"GET /api/moments/user/{SECOND_USER_ID}/count (with auth)",
-                    False,
-                    f"Invalid response format: {data}"
-                )
-                return False
-        else:
-            log_test(
-                f"GET /api/moments/user/{SECOND_USER_ID}/count (with auth)",
-                False,
-                f"HTTP {response.status_code}: {response.text}"
-            )
-            return False
-            
-    except Exception as e:
-        log_test(f"GET /api/moments/user/{SECOND_USER_ID}/count (with auth)", False, f"Exception: {e}")
-        return False
-
-
-def test_my_moments_count_without_auth():
-    """Test 2c: GET /api/moments/mine/count without auth (expect 401/403)"""
-    print("\n=== Test 2c: My Moments Count (without auth) ===")
-    
-    url = f"{BASE_URL}/moments/mine/count"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code in [401, 403]:
-            log_test(
-                "GET /api/moments/mine/count (without auth)",
-                True,
-                f"Correctly rejected with HTTP {response.status_code}"
-            )
-            return True
-        else:
-            log_test(
-                "GET /api/moments/mine/count (without auth)",
-                False,
-                f"Expected 401/403, got HTTP {response.status_code}: {response.text}"
-            )
-            return False
-            
-    except Exception as e:
-        log_test("GET /api/moments/mine/count (without auth)", False, f"Exception: {e}")
-        return False
-
-
-def test_cover_upload_valid(token):
-    """Test 3a: POST /api/users/me/cover with valid base64 image"""
-    print("\n=== Test 3a: Cover Upload (valid image) ===")
-    
-    url = f"{BASE_URL}/users/me/cover"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    # Create a tiny 1x1 PNG image (valid base64)
-    # This is a minimal valid PNG file
-    tiny_png = (
-        b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
-        b'\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01'
-        b'\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
-    )
-    image_base64 = base64.b64encode(tiny_png).decode('utf-8')
+def test_register_user():
+    """Test 2: POST /api/auth/register - Register new test user"""
+    print_test(f"User Registration - POST /api/auth/register")
     
     payload = {
-        "image_base64": image_base64,
-        "mime": "image/png"
+        "email": TEST_USER_EMAIL,
+        "password": TEST_USER_PASSWORD,
+        "name": TEST_USER_NAME,
+        "native_languages": ["English"],
+        "learning_languages": ["Spanish", "French"],
+        "gender": "female"
     }
     
+    print_info(f"Registering user: {TEST_USER_EMAIL}")
+    print_info(f"Payload: {json.dumps(payload, indent=2)}")
+    
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response = requests.post(
+            f"{API_URL}/auth/register",
+            json=payload,
+            timeout=10
+        )
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text[:500]}")
+        
+        if response.status_code in [200, 201]:
+            data = response.json()
+            if "token" in data and "user" in data:
+                print_success(f"User registered successfully: {data['user'].get('email')}")
+                print_success(f"Token received: {data['token'][:20]}...")
+                return True, data
+            else:
+                print_error(f"Missing token or user in response: {data}")
+                return False, None
+        else:
+            print_error(f"Registration failed with status {response.status_code}")
+            return False, None
+    except Exception as e:
+        print_error(f"Registration request failed: {str(e)}")
+        return False, None
+
+def test_login_user(email, password, user_type="test user"):
+    """Test 3: POST /api/auth/login - Login with credentials"""
+    print_test(f"User Login ({user_type}) - POST /api/auth/login")
+    
+    payload = {
+        "email": email,
+        "password": password
+    }
+    
+    print_info(f"Logging in: {email}")
+    
+    try:
+        response = requests.post(
+            f"{API_URL}/auth/login",
+            json=payload,
+            timeout=10
+        )
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text[:500]}")
         
         if response.status_code == 200:
             data = response.json()
-            cover_url = data.get("cover_url")
-            
-            if cover_url and cover_url.startswith("/api/media/"):
-                log_test(
-                    "POST /api/users/me/cover (valid image)",
-                    True,
-                    f"Cover uploaded successfully, cover_url: {cover_url}"
-                )
-                return True
+            if "token" in data and "user" in data:
+                print_success(f"Login successful for {email}")
+                print_success(f"Token received: {data['token'][:20]}...")
+                print_success(f"User ID: {data['user'].get('id')}")
+                return True, data
             else:
-                log_test(
-                    "POST /api/users/me/cover (valid image)",
-                    False,
-                    f"Invalid cover_url in response: {cover_url}"
-                )
-                return False
+                print_error(f"Missing token or user in response: {data}")
+                return False, None
         else:
-            log_test(
-                "POST /api/users/me/cover (valid image)",
-                False,
-                f"HTTP {response.status_code}: {response.text}"
-            )
-            return False
-            
+            print_error(f"Login failed with status {response.status_code}")
+            return False, None
     except Exception as e:
-        log_test("POST /api/users/me/cover (valid image)", False, f"Exception: {e}")
-        return False
+        print_error(f"Login request failed: {str(e)}")
+        return False, None
 
+def test_get_profile(token):
+    """Test 4: GET /api/auth/me - Get user profile with token"""
+    print_test("Get User Profile - GET /api/auth/me")
+    
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+    
+    print_info(f"Using token: {token[:20]}...")
+    
+    try:
+        response = requests.get(
+            f"{API_URL}/auth/me",
+            headers=headers,
+            timeout=10
+        )
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            if "email" in data and "id" in data:
+                print_success(f"Profile retrieved: {data.get('email')}")
+                print_success(f"User ID: {data.get('id')}")
+                print_success(f"Name: {data.get('name')}")
+                return True, data
+            else:
+                print_error(f"Missing expected fields in profile: {data}")
+                return False, None
+        else:
+            print_error(f"Get profile failed with status {response.status_code}")
+            return False, None
+    except Exception as e:
+        print_error(f"Get profile request failed: {str(e)}")
+        return False, None
 
-def test_cover_upload_invalid(token):
-    """Test 3b: POST /api/users/me/cover with invalid base64 (expect 400)"""
-    print("\n=== Test 3b: Cover Upload (invalid base64) ===")
+def test_get_partners(token):
+    """Test 5: GET /api/users/partners - Check DB connectivity"""
+    print_test("Get Partners List - GET /api/users/partners")
     
-    url = f"{BASE_URL}/users/me/cover"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    payload = {
-        "image_base64": "!!!notbase64!!!",
-        "mime": "image/png"
+    headers = {
+        "Authorization": f"Bearer {token}"
     }
     
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response = requests.get(
+            f"{API_URL}/users/partners",
+            headers=headers,
+            timeout=10
+        )
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text[:500]}")
         
-        if response.status_code == 400:
-            log_test(
-                "POST /api/users/me/cover (invalid base64)",
-                True,
-                f"Correctly rejected with HTTP 400"
-            )
+        if response.status_code == 200:
+            data = response.json()
+            print_success(f"Partners endpoint accessible (returned {len(data)} partners)")
             return True
         else:
-            log_test(
-                "POST /api/users/me/cover (invalid base64)",
-                False,
-                f"Expected 400, got HTTP {response.status_code}: {response.text}"
-            )
+            print_error(f"Get partners failed with status {response.status_code}")
             return False
-            
     except Exception as e:
-        log_test("POST /api/users/me/cover (invalid base64)", False, f"Exception: {e}")
+        print_error(f"Get partners request failed: {str(e)}")
         return False
 
-
-def print_summary():
-    """Print test summary"""
-    print("\n" + "="*60)
-    print("TEST SUMMARY")
-    print("="*60)
+def test_get_rooms(token):
+    """Test 6: GET /api/rooms - Check DB connectivity"""
+    print_test("Get Rooms List - GET /api/rooms")
     
-    passed = sum(1 for t in test_results if t["passed"])
-    total = len(test_results)
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
     
-    print(f"\nTotal: {passed}/{total} tests passed\n")
-    
-    for result in test_results:
-        status = "✅" if result["passed"] else "❌"
-        print(f"{status} {result['name']}")
-        if result["details"] and not result["passed"]:
-            print(f"   {result['details']}")
-    
-    print("\n" + "="*60)
-    
-    return passed == total
-
+    try:
+        response = requests.get(
+            f"{API_URL}/rooms",
+            headers=headers,
+            timeout=10
+        )
+        print_info(f"Status Code: {response.status_code}")
+        print_info(f"Response: {response.text[:500]}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            print_success(f"Rooms endpoint accessible (returned {len(data)} rooms)")
+            return True
+        else:
+            print_error(f"Get rooms failed with status {response.status_code}")
+            return False
+    except Exception as e:
+        print_error(f"Get rooms request failed: {str(e)}")
+        return False
 
 def main():
-    """Run all tests"""
-    print("="*60)
-    print("LinguaConnect Backend API Tests")
-    print("Profile Redesign - New Endpoints")
-    print("="*60)
+    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}LinguaConnect Backend Testing Suite{RESET}")
+    print(f"{BLUE}Testing .env fix and auth flow{RESET}")
+    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"{YELLOW}Backend URL: {API_URL}{RESET}\n")
     
-    # Get auth token
-    token = get_auth_token()
-    if not token:
-        print("\n❌ CRITICAL: Authentication failed. Cannot proceed with tests.")
+    results = {
+        "passed": 0,
+        "failed": 0,
+        "total": 0
+    }
+    
+    # Test 1: Health Check
+    results["total"] += 1
+    if test_health_check():
+        results["passed"] += 1
+    else:
+        results["failed"] += 1
+        print_error("CRITICAL: Backend health check failed. Stopping tests.")
+        print_summary(results)
         sys.exit(1)
     
-    # Run all tests
-    test_extended_profile_update(token)
-    test_profile_persistence(token)
-    test_my_moments_count_with_auth(token)
-    test_user_moments_count_with_auth(token)
-    test_my_moments_count_without_auth()
-    test_cover_upload_valid(token)
-    test_cover_upload_invalid(token)
+    # Test 2: Register new user
+    results["total"] += 1
+    register_success, register_data = test_register_user()
+    if register_success:
+        results["passed"] += 1
+        test_user_token = register_data["token"]
+    else:
+        results["failed"] += 1
+        print_error("CRITICAL: User registration failed. Stopping auth flow tests.")
+        print_summary(results)
+        sys.exit(1)
     
-    # Print summary
-    all_passed = print_summary()
+    # Test 3: Login with new user
+    results["total"] += 1
+    login_success, login_data = test_login_user(TEST_USER_EMAIL, TEST_USER_PASSWORD, "new test user")
+    if login_success:
+        results["passed"] += 1
+        test_user_token = login_data["token"]  # Use login token
+    else:
+        results["failed"] += 1
+        print_error("CRITICAL: User login failed. This is the 'can't enter app' issue.")
     
-    sys.exit(0 if all_passed else 1)
+    # Test 4: Get profile with token
+    results["total"] += 1
+    if test_get_profile(test_user_token)[0]:
+        results["passed"] += 1
+    else:
+        results["failed"] += 1
+    
+    # Test 5: Login with admin account
+    results["total"] += 1
+    admin_login_success, admin_data = test_login_user(ADMIN_EMAIL, ADMIN_PASSWORD, "admin")
+    if admin_login_success:
+        results["passed"] += 1
+        admin_token = admin_data["token"]
+    else:
+        results["failed"] += 1
+        admin_token = test_user_token  # Fallback to test user token
+    
+    # Test 6: Get partners (DB connectivity check)
+    results["total"] += 1
+    if test_get_partners(admin_token):
+        results["passed"] += 1
+    else:
+        results["failed"] += 1
+    
+    # Test 7: Get rooms (DB connectivity check)
+    results["total"] += 1
+    if test_get_rooms(admin_token):
+        results["passed"] += 1
+    else:
+        results["failed"] += 1
+    
+    print_summary(results)
+    
+    # Exit with appropriate code
+    if results["failed"] == 0:
+        sys.exit(0)
+    else:
+        sys.exit(1)
 
+def print_summary(results):
+    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}TEST SUMMARY{RESET}")
+    print(f"{BLUE}{'='*60}{RESET}")
+    print(f"Total Tests: {results['total']}")
+    print(f"{GREEN}Passed: {results['passed']}{RESET}")
+    print(f"{RED}Failed: {results['failed']}{RESET}")
+    
+    if results["failed"] == 0:
+        print(f"\n{GREEN}✓ ALL TESTS PASSED - Backend is fully operational{RESET}")
+        print(f"{GREEN}✓ Auth flow working - 'Can't enter app' issue is RESOLVED{RESET}")
+    else:
+        print(f"\n{RED}✗ SOME TESTS FAILED - See details above{RESET}")
+    print(f"{BLUE}{'='*60}{RESET}\n")
 
 if __name__ == "__main__":
     main()

@@ -104,6 +104,11 @@ class RoomMessageCreate(BaseModel):
     text: str = Field(min_length=1, max_length=500)
 
 
+class RoomGiftCreate(BaseModel):
+    to_user_id: str
+    gift_id: str
+
+
 def _learning_list(doc: dict) -> list:
     ll = doc.get("learning_languages")
     if ll:

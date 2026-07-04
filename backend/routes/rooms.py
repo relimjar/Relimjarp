@@ -6,10 +6,44 @@ from fastapi import APIRouter, HTTPException
 from auth_utils import CurrentUser
 from config_utils import get_app_config
 from db import room_messages_col, rooms_col, users_col
-from models import RoomCreate, RoomMessageCreate, RoomRoleUpdate, RoomUserAction, _vip_active, user_card
+from models import (
+    RoomCreate,
+    RoomGiftCreate,
+    RoomMessageCreate,
+    RoomRoleUpdate,
+    RoomUserAction,
+    _vip_active,
+    user_card,
+)
 from ws_manager import manager
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
+
+# Simple emoji gift catalog for voice rooms — prices in coins.
+GIFT_CATALOG = [
+    {"id": "rose", "emoji": "🌹", "name": "Rose", "price": 10},
+    {"id": "heart", "emoji": "💖", "name": "Heart", "price": 20},
+    {"id": "star", "emoji": "⭐", "name": "Star", "price": 30},
+    {"id": "crown", "emoji": "👑", "name": "Crown", "price": 100},
+]
+GIFT_MAP = {g["id"]: g for g in GIFT_CATALOG}
+
+
+@router.get("/gift-catalog")
+async def gift_catalog(current_user: CurrentUser):
+    return {"coins": current_user.get("coins", 0), "gifts": GIFT_CATALOG}
+
+
+def _message_public(d: dict) -> dict:
+    return {
+        "id": d["_id"],
+        "room_id": d["room_id"],
+        "sender": d.get("sender"),
+        "text": d["text"],
+        "type": d.get("type", "text"),
+        "gift": d.get("gift"),
+        "created_at": d["created_at"],
+    }
 
 
 async def room_detail(doc: dict) -> dict:
@@ -22,15 +56,24 @@ async def room_detail(doc: dict) -> dict:
         if u:
             members.append({**user_card(u), "role": m["role"], "mic_on": m["mic_on"], "hand_raised": m["hand_raised"]})
     host = users_by_id.get(doc["host_id"])
+    gift_totals = doc.get("gift_totals") or {}
+    top_gifters = []
+    for uid, coins in sorted(gift_totals.items(), key=lambda kv: kv[1], reverse=True)[:2]:
+        u = users_by_id.get(uid)
+        if u and coins > 0:
+            top_gifters.append({**user_card(u), "coins": coins})
     return {
         "id": doc["_id"],
         "title": doc["title"],
         "language": doc["language"],
         "languages": doc.get("languages") or [doc["language"]],
         "host": user_card(host) if host else None,
+        "host_level": max(1, (host or {}).get("streak_count") or 1),
         "is_live": doc["is_live"],
         "members": members,
         "member_count": len(members),
+        "chat_muted": bool(doc.get("chat_muted")),
+        "top_gifters": top_gifters,
         "created_at": doc["created_at"],
     }
 
@@ -103,6 +146,8 @@ async def create_room(body: RoomCreate, current_user: CurrentUser):
         "members": {
             current_user["_id"]: {"role": "host", "mic_on": True, "hand_raised": False}
         },
+        "chat_muted": False,
+        "gift_totals": {},
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await rooms_col.insert_one(doc)
@@ -128,7 +173,21 @@ async def join_room(room_id: str, current_user: CurrentUser):
         await rooms_col.update_one(
             {"_id": room_id}, {"$set": {f"members.{uid}": doc["members"][uid]}}
         )
+        welcome = {
+            "_id": str(uuid.uuid4()),
+            "room_id": room_id,
+            "sender": None,
+            "text": f"Welcome {current_user.get('name', 'a new member')} to the room! 🎉",
+            "type": "system",
+            "gift": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await room_messages_col.insert_one(welcome)
         await broadcast_room(doc, {"joined": user_card(current_user)})
+        await manager.broadcast(
+            list(doc["members"].keys()),
+            {"type": "room_message", "message": _message_public(welcome)},
+        )
     return await room_detail(doc)
 
 
@@ -252,6 +311,19 @@ async def dismiss_hand(room_id: str, body: RoomUserAction, current_user: Current
     return {"ok": True}
 
 
+@router.post("/{room_id}/chat-mute")
+async def toggle_chat_mute(room_id: str, current_user: CurrentUser):
+    """Host toggles muting text chat for everyone except the host."""
+    doc = await get_live_room(room_id)
+    if doc["host_id"] != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Only the host can mute room chat")
+    muted = not doc.get("chat_muted")
+    await rooms_col.update_one({"_id": room_id}, {"$set": {"chat_muted": muted}})
+    doc["chat_muted"] = muted
+    await broadcast_room(doc)
+    return {"chat_muted": muted}
+
+
 @router.get("/{room_id}/messages")
 async def list_room_messages(room_id: str, current_user: CurrentUser):
     docs = (
@@ -259,16 +331,7 @@ async def list_room_messages(room_id: str, current_user: CurrentUser):
         .sort("created_at", 1)
         .to_list(200)
     )
-    return [
-        {
-            "id": d["_id"],
-            "room_id": d["room_id"],
-            "sender": d["sender"],
-            "text": d["text"],
-            "created_at": d["created_at"],
-        }
-        for d in docs
-    ]
+    return [_message_public(d) for d in docs]
 
 
 @router.post("/{room_id}/messages", status_code=201)
@@ -276,22 +339,65 @@ async def send_room_message(room_id: str, body: RoomMessageCreate, current_user:
     doc = await get_live_room(room_id)
     if current_user["_id"] not in doc["members"]:
         raise HTTPException(status_code=403, detail="Join the room first")
+    if doc.get("chat_muted") and current_user["_id"] != doc["host_id"]:
+        raise HTTPException(status_code=403, detail="Chat has been muted by the host")
     msg = {
         "_id": str(uuid.uuid4()),
         "room_id": room_id,
         "sender": user_card(current_user),
         "text": body.text,
+        "type": "text",
+        "gift": None,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await room_messages_col.insert_one(msg)
-    public = {
-        "id": msg["_id"],
-        "room_id": room_id,
-        "sender": msg["sender"],
-        "text": msg["text"],
-        "created_at": msg["created_at"],
-    }
+    public = _message_public(msg)
     await manager.broadcast(
         list(doc["members"].keys()), {"type": "room_message", "message": public}
     )
     return public
+
+
+@router.post("/{room_id}/gift", status_code=201)
+async def send_gift(room_id: str, body: RoomGiftCreate, current_user: CurrentUser):
+    """Send an emoji gift to a member on stage — deducts coins and posts a room message."""
+    doc = await get_live_room(room_id)
+    if current_user["_id"] not in doc["members"]:
+        raise HTTPException(status_code=403, detail="Join the room first")
+    gift = GIFT_MAP.get(body.gift_id)
+    if not gift:
+        raise HTTPException(status_code=404, detail="Gift not found")
+    receiver_member = doc["members"].get(body.to_user_id)
+    if not receiver_member:
+        raise HTTPException(status_code=404, detail="Recipient is not in this room")
+    coins = current_user.get("coins", 0)
+    if coins < gift["price"]:
+        raise HTTPException(status_code=400, detail="Not enough coins for this gift")
+    receiver = await users_col.find_one({"_id": body.to_user_id})
+    receiver_name = receiver.get("name", "someone") if receiver else "someone"
+    new_coins = coins - gift["price"]
+    await users_col.update_one(
+        {"_id": current_user["_id"]}, {"$set": {"coins": new_coins}}
+    )
+    current_user["coins"] = new_coins
+    await rooms_col.update_one(
+        {"_id": room_id},
+        {"$inc": {f"gift_totals.{body.to_user_id}": gift["price"]}},
+    )
+    msg = {
+        "_id": str(uuid.uuid4()),
+        "room_id": room_id,
+        "sender": user_card(current_user),
+        "text": f"sent a {gift['emoji']} {gift['name']} to {receiver_name}!",
+        "type": "gift",
+        "gift": {"emoji": gift["emoji"], "name": gift["name"], "to": receiver_name},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await room_messages_col.insert_one(msg)
+    public = _message_public(msg)
+    fresh_doc = await get_live_room(room_id)
+    await manager.broadcast(
+        list(fresh_doc["members"].keys()), {"type": "room_message", "message": public}
+    )
+    await broadcast_room(fresh_doc)
+    return {"coins": new_coins, "message": public}
