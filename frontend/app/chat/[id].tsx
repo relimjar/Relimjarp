@@ -914,15 +914,18 @@ export default function ChatScreen() {
             )}
           <View style={styles.inputArea}>
             <View style={styles.inputRow}>
-              <TextInput
-                testID="chat-message-input"
-                style={styles.input}
-                placeholder="Type a message..."
-                placeholderTextColor={colors.onSurfaceSecondary}
-                value={draft}
-                onChangeText={setDraft}
-                multiline
-              />
+              <View style={styles.inputPill}>
+                <TextInput
+                  testID="chat-message-input"
+                  style={styles.input}
+                  placeholder="Type a message..."
+                  placeholderTextColor={colors.onSurfaceSecondary}
+                  selectionColor={colors.brand}
+                  value={draft}
+                  onChangeText={setDraft}
+                  multiline
+                />
+              </View>
               {draft.trim() ? (
                 <View style={styles.inlineActions}>
                   <Pressable
@@ -1004,7 +1007,7 @@ export default function ChatScreen() {
                 style={[styles.toolIcon, draftFixing && { opacity: 0.4 }]}
                 disabled={draftFixing}
               >
-                <Ionicons name="language-outline" size={24} color={colors.onSurface} />
+                <Text style={styles.translateGlyph}>文A</Text>
               </Pressable>
               <Pressable
                 testID="tool-templates"
@@ -1410,11 +1413,14 @@ const makeStyles = (colors: ThemeColors) =>
       flexDirection: "row",
       alignItems: "center",
       gap: spacing.sm,
+    },
+    inputPill: {
+      flex: 1,
       backgroundColor: colors.surfaceSecondary,
       borderRadius: 28,
-      paddingLeft: spacing.xl,
-      paddingRight: spacing.sm,
+      paddingHorizontal: spacing.xl,
       minHeight: 54,
+      justifyContent: "center",
     },
     inlineActions: {
       flexDirection: "row",
@@ -1422,10 +1428,15 @@ const makeStyles = (colors: ThemeColors) =>
       gap: spacing.sm,
     },
     micBtn: {
-      width: 42,
-      height: 42,
+      width: 44,
+      height: 44,
       alignItems: "center",
       justifyContent: "center",
+    },
+    translateGlyph: {
+      fontFamily: fonts.textBold,
+      fontSize: 18,
+      color: colors.onSurface,
     },
     toolbarRow: {
       flexDirection: "row",
