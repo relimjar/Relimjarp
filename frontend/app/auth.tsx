@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -12,11 +13,13 @@ import {
   View,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
+
+type FieldKey = "name" | "email" | "password";
 
 export default function AuthScreen() {
   const { mode: initialMode } = useLocalSearchParams<{ mode?: string }>();
@@ -26,10 +29,13 @@ export default function AuthScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [focused, setFocused] = useState<FieldKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { login, register } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
@@ -60,192 +66,369 @@ export default function AuthScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container} testID="auth-screen">
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Pressable
-            testID="auth-back-btn"
-            onPress={() => router.back()}
-            style={styles.backBtn}
-          >
-            <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-          </Pressable>
+  const inputWrapStyle = (key: FieldKey) => [
+    styles.inputWrap,
+    focused === key && styles.inputWrapFocused,
+  ];
 
-          <Text style={styles.title}>
+  return (
+    <View style={styles.container} testID="auth-screen">
+      {/* Gradient hero */}
+      <LinearGradient
+        colors={["#0EA5E9", "#38BDF8", "#7DD3FC"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + spacing.sm }]}
+      >
+        <Pressable
+          testID="auth-back-btn"
+          onPress={() => router.back()}
+          style={styles.backBtn}
+        >
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+        </Pressable>
+
+        <View style={styles.heroBody}>
+          <View style={styles.logoBadge}>
+            <Ionicons name="chatbubbles" size={26} color="#0EA5E9" />
+          </View>
+          <Text style={styles.heroTitle}>
             {isLogin ? "Welcome back!" : "Create your account"}
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={styles.heroSubtitle}>
             {isLogin
               ? "Log in to keep practicing with your partners."
               : "Join millions learning languages together."}
           </Text>
+        </View>
+      </LinearGradient>
 
-          {!isLogin && (
-            <View style={styles.field}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                testID="auth-name-input"
-                style={styles.input}
-                placeholder="Your name"
-                placeholderTextColor={colors.onSurfaceSecondary}
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-              />
-            </View>
-          )}
-          <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              testID="auth-email-input"
-              style={styles.input}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.onSurfaceSecondary}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-            />
-          </View>
-          <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              testID="auth-password-input"
-              style={styles.input}
-              placeholder={isLogin ? "Your password" : "At least 6 characters"}
-              placeholderTextColor={colors.onSurfaceSecondary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          {error && (
-            <Text testID="auth-error-text" style={styles.error}>
-              {error}
-            </Text>
-          )}
-
-          <Pressable
-            testID="auth-submit-btn"
-            style={({ pressed }) => [
-              styles.submitBtn,
-              (pressed || busy) && { opacity: 0.7 },
-            ]}
-            onPress={submit}
-            disabled={busy}
+      {/* Form sheet */}
+      <KeyboardAvoidingView
+        style={styles.sheetFlex}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : Platform.OS === "android"
+              ? "height"
+              : undefined
+        }
+      >
+        <View style={styles.sheet}>
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {busy ? (
-              <ActivityIndicator color={colors.onBrand} />
-            ) : (
-              <Text style={styles.submitText}>
-                {isLogin ? "Log In" : "Sign Up"}
-              </Text>
+            {!isLogin && (
+              <View style={styles.field}>
+                <Text style={styles.label}>Name</Text>
+                <View style={inputWrapStyle("name")}>
+                  <Ionicons
+                    name="person-outline"
+                    size={18}
+                    color={focused === "name" ? colors.brand : colors.onSurfaceSecondary}
+                  />
+                  <TextInput
+                    testID="auth-name-input"
+                    style={styles.input}
+                    placeholder="Your name"
+                    placeholderTextColor={colors.onSurfaceSecondary}
+                    value={name}
+                    onChangeText={setName}
+                    autoCapitalize="words"
+                    onFocus={() => setFocused("name")}
+                    onBlur={() => setFocused(null)}
+                  />
+                </View>
+              </View>
             )}
-          </Pressable>
 
-          <Pressable
-            testID="auth-switch-mode-btn"
-            onPress={() => {
-              setMode(isLogin ? "register" : "login");
-              setError(null);
-            }}
-            style={styles.switchBtn}
-          >
-            <Text style={styles.switchText}>
-              {isLogin
-                ? "New here? Create an account"
-                : "Already have an account? Log in"}
-            </Text>
-          </Pressable>
-        </ScrollView>
+            <View style={styles.field}>
+              <Text style={styles.label}>Email</Text>
+              <View style={inputWrapStyle("email")}>
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={focused === "email" ? colors.brand : colors.onSurfaceSecondary}
+                />
+                <TextInput
+                  testID="auth-email-input"
+                  style={styles.input}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.onSurfaceSecondary}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  onFocus={() => setFocused("email")}
+                  onBlur={() => setFocused(null)}
+                />
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <View style={inputWrapStyle("password")}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color={
+                    focused === "password" ? colors.brand : colors.onSurfaceSecondary
+                  }
+                />
+                <TextInput
+                  testID="auth-password-input"
+                  style={styles.input}
+                  placeholder={isLogin ? "Your password" : "At least 6 characters"}
+                  placeholderTextColor={colors.onSurfaceSecondary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  onFocus={() => setFocused("password")}
+                  onBlur={() => setFocused(null)}
+                />
+                <Pressable
+                  testID="auth-toggle-password-btn"
+                  onPress={() => setShowPassword((v) => !v)}
+                  hitSlop={8}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={19}
+                    color={colors.onSurfaceSecondary}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            {error && (
+              <View style={styles.errorRow}>
+                <Ionicons name="alert-circle" size={15} color={colors.error} />
+                <Text testID="auth-error-text" style={styles.error}>
+                  {error}
+                </Text>
+              </View>
+            )}
+
+            <Pressable
+              testID="auth-submit-btn"
+              style={({ pressed }) => [
+                styles.submitWrap,
+                (pressed || busy) && { opacity: 0.8 },
+              ]}
+              onPress={submit}
+              disabled={busy}
+            >
+              <LinearGradient
+                colors={["#0EA5E9", "#38BDF8"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.submitBtn}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.submitText}>
+                      {isLogin ? "Log In" : "Sign Up"}
+                    </Text>
+                    <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                  </>
+                )}
+              </LinearGradient>
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>
+                {isLogin ? "New to LinguaConnect?" : "Been here before?"}
+              </Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              testID="auth-switch-mode-btn"
+              onPress={() => {
+                setMode(isLogin ? "register" : "login");
+                setError(null);
+              }}
+              style={({ pressed }) => [
+                styles.switchBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.switchText}>
+                {isLogin ? "Create an account" : "Log in instead"}
+              </Text>
+            </Pressable>
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  scroll: {
-    padding: spacing.xl,
-    paddingBottom: spacing.xxxl,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xl,
-  },
-  title: {
-    fontFamily: fonts.display,
-    fontSize: 28,
-    color: colors.onSurface,
-  },
-  subtitle: {
-    fontFamily: fonts.text,
-    fontSize: 15,
-    color: colors.onSurfaceSecondary,
-    marginTop: spacing.sm,
-    marginBottom: spacing.xl,
-  },
-  field: {
-    marginBottom: spacing.lg,
-  },
-  label: {
-    fontFamily: fonts.textBold,
-    fontSize: 13,
-    color: colors.onSurfaceTertiary,
-    marginBottom: spacing.sm,
-  },
-  input: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md + 2,
-    fontFamily: fonts.text,
-    fontSize: 15,
-    color: colors.onSurface,
-  },
-  error: {
-    color: colors.error,
-    fontFamily: fonts.textSemi,
-    fontSize: 13,
-    marginBottom: spacing.md,
-  },
-  submitBtn: {
-    backgroundColor: colors.brand,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.lg,
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  submitText: {
-    color: colors.onBrand,
-    fontFamily: fonts.textBold,
-    fontSize: 16,
-  },
-  switchBtn: {
-    alignItems: "center",
-    marginTop: spacing.xl,
-  },
-  switchText: {
-    color: colors.brand,
-    fontFamily: fonts.textBold,
-    fontSize: 14,
-  },
-});
+    container: {
+      flex: 1,
+      backgroundColor: "#0EA5E9",
+    },
+    hero: {
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.xxl + spacing.md,
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.pill,
+      backgroundColor: "rgba(255,255,255,0.22)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    heroBody: {
+      marginTop: spacing.lg,
+      gap: spacing.sm,
+    },
+    logoBadge: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: "#FFFFFF",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: spacing.xs,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#0F172A",
+          shadowOpacity: 0.15,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        android: { elevation: 4 },
+        default: {},
+      }),
+    },
+    heroTitle: {
+      fontFamily: fonts.display,
+      fontSize: 28,
+      color: "#FFFFFF",
+    },
+    heroSubtitle: {
+      fontFamily: fonts.textSemi,
+      fontSize: 14.5,
+      lineHeight: 21,
+      color: "rgba(255,255,255,0.9)",
+    },
+    sheetFlex: {
+      flex: 1,
+    },
+    sheet: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 28,
+      borderTopRightRadius: 28,
+      marginTop: -spacing.xl,
+      overflow: "hidden",
+    },
+    scroll: {
+      padding: spacing.xl,
+      paddingTop: spacing.xl + spacing.xs,
+      paddingBottom: spacing.xxxl,
+    },
+    field: {
+      marginBottom: spacing.lg,
+    },
+    label: {
+      fontFamily: fonts.textBold,
+      fontSize: 13,
+      color: colors.onSurfaceTertiary,
+      marginBottom: spacing.sm,
+    },
+    inputWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm + 2,
+      backgroundColor: colors.surfaceSecondary,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: "transparent",
+      paddingHorizontal: spacing.lg,
+    },
+    inputWrapFocused: {
+      borderColor: colors.brand,
+      backgroundColor: colors.surface,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: spacing.md + 2,
+      fontFamily: fonts.textSemi,
+      fontSize: 15,
+      color: colors.onSurface,
+      ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+    },
+    errorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: "rgba(239,68,68,0.08)",
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginBottom: spacing.md,
+    },
+    error: {
+      flex: 1,
+      color: colors.error,
+      fontFamily: fonts.textSemi,
+      fontSize: 13,
+    },
+    submitWrap: {
+      borderRadius: radius.pill,
+      overflow: "hidden",
+      marginTop: spacing.sm,
+    },
+    submitBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: spacing.sm,
+      paddingVertical: spacing.lg,
+    },
+    submitText: {
+      color: "#FFFFFF",
+      fontFamily: fonts.textBold,
+      fontSize: 16,
+    },
+    dividerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.md,
+      marginTop: spacing.xl + spacing.sm,
+    },
+    dividerLine: {
+      flex: 1,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.borderStrong,
+    },
+    dividerText: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12.5,
+      color: colors.onSurfaceSecondary,
+    },
+    switchBtn: {
+      alignItems: "center",
+      marginTop: spacing.lg,
+      borderWidth: 1.5,
+      borderColor: colors.brand,
+      borderRadius: radius.pill,
+      paddingVertical: spacing.md + 2,
+    },
+    switchText: {
+      color: colors.brand,
+      fontFamily: fonts.textBold,
+      fontSize: 15,
+    },
+  });

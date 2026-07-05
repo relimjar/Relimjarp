@@ -547,18 +547,101 @@ backend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.7"
-  test_sequence: 6
-  run_ui: false
+  version: "1.8"
+  test_sequence: 7
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "POST /api/rooms/{room_id}/share-to-moments endpoint"
-    - "Repeatable room sharing"
-    - "Hand raising and role management"
+    - "Chats page pinned header"
+    - "Connect page pinned header"
+    - "Partner card tags"
+    - "Profile language text"
+    - "Auth redesign"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented 5 UI changes per user feedback: (1) Chats page - removed collapsible header, shortcuts+search now pinned. (2) Connect page - removed collapsible header, category tabs+language chips now pinned. (3) Connect partner cards - new tag logic guarantees 2-3 varied tags per card (Perfect match, Similar interests, Loves X, etc.). (4) Profile preview - language name labels now use textSemi font for slightly bolder weight. (5) Auth screen - full HelloTalk-style redesign with gradient hero, icon inputs, password eye toggle, gradient CTA button, outlined switch button. All testIDs preserved. Please test all 5 changes on mobile viewport (390x844). Login with mei@demo.com / Demo1234!. A check-in modal may appear after login - close it."
+    - agent: "testing"
+      message: "✅ ALL 5 UI CHANGES VERIFIED (5/5 passed). TEST 1 - Auth redesign ✅: Login screen shows blue gradient hero with white logo badge (chat icon), 'Welcome back!' title, Email+Password inputs with leading icons, password eye toggle working (show/hide), gradient 'Log In' button, 'New to LinguaConnect?' divider, outlined 'Create an account' button. Signup mode shows Name field, 'Create your account' title, 'Log in instead' button. Empty form validation working. Login successful. TEST 2 - Chats pinned header ✅: Shortcuts row (All Courses, Play, AI Translation, Voiceroom, More) and search bar visible initially. Scrolled 300px down - both REMAIN VISIBLE (pinned). TEST 3 - Connect pinned header ✅: Category tabs (All, Serious Learners, Nearby, City, Gender) and language chips (Best Match, English, Japanese) visible initially. Scrolled down - both REMAIN VISIBLE (pinned). TEST 4 - Partner card tags ✅: Checked 7 cards, ALL show exactly 2 tags. Found 6 unique tag types (Perfect match, Similar age, Similar interests, Loves X, Very active, Language exchange). Tags VARIED across cards. TEST 5 - Profile language text ✅: Language section shows OLD column design (EN code with underline + 'English' below, JA/KO codes with dots + names below). Code confirms langName uses fonts.textSemi (semi-bold). NO CRITICAL ISSUES FOUND. All UI changes working as specified."
+
+## Test Run — User Feedback Round 3 (pinned headers, varied tags, bolder lang text, auth redesign)
+user_problem_statement: User asked - (1) Chats & Connect pages - top elements must NOT hide/collapse on scroll, only the lists scroll; (2) Connect partner cards should show 2-3 varied tags (Similar interests etc., not just Similar age); (3) profile preview language texts slightly bolder; (4) redesign Login/Signup HelloTalk-style keeping same elements.
+
+frontend:
+  - task: "Chats page - shortcuts+search pinned (collapsible header removed)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/chats.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed useCollapsibleHeader/Animated wrapper/onScroll. Shortcuts row + search bar now always visible; only conversation list scrolls."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Shortcuts row (All Courses, Play, AI Translation, Voiceroom, More) and search bar visible initially. Scrolled down 300px in conversation list. VERIFIED: Both shortcuts row and search bar REMAIN VISIBLE after scroll (pinned correctly). No collapse behavior detected. Screenshots captured before/after scroll showing elements stay in place."
+  - task: "Connect page - category tabs + language chips pinned (collapsible header removed)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/connect.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed useCollapsibleHeader/Animated wrapper/onScroll. Verified via screenshot - header/tabs/chips remain visible after scrolling."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Category tabs (All, Serious Learners, Nearby, City, Gender) and language chips (Best Match, English, Japanese) visible initially. Scrolled down in partner list. VERIFIED: Both category tabs and language chips REMAIN VISIBLE after scroll (pinned correctly). Header title 'Connect' also stays visible. No collapse behavior detected."
+  - task: "Connect partner cards - 2-3 varied tags (Perfect match, Similar interests, Loves X, Nearby, Serious learner, Language exchange fallback)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/connect.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New tag priority list guarantees minimum 2, max 3 tags per card. Verified via screenshot - cards show varied combos."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Checked 7 partner cards. ALL cards display exactly 2 tags each. Found 6 unique tag types: 'Perfect match', 'Similar age', 'Similar interests', 'Loves X', 'Very active', 'Language exchange'. Tags are VARIED across cards - no card has zero tags. Examples: Card 1 (Similar age, Similar interests), Card 2 (Perfect match, Very active), Card 3 (Similar age, Loves X), Card 4 (Perfect match, Similar age), Card 5 (Loves X, Language exchange). Tag variety confirmed."
+  - task: "Profile preview language labels slightly bolder (textSemi)"
+    implemented: true
+    working: true
+    file: "frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "langName font text->textSemi, langCode +letterSpacing."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Opened partner profile. VERIFIED: Language section displays OLD column design (code + underline/dots + name below, NOT pill/chip style). Language codes visible (EN, JA, KO). Language names visible below codes (English, Japanese, Korean). Code review confirms langName uses fonts.textSemi (line 774 in user/[id].tsx) for semi-bold weight. Structure matches old design with vertical layout."
+  - task: "Auth (login/signup) HelloTalk-style redesign - gradient hero, icon inputs, password eye, gradient CTA, outline switch button"
+    implemented: true
+    working: true
+    file: "frontend/app/auth.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Full redesign keeping all elements + testIDs (auth-name-input, auth-email-input, auth-password-input, auth-submit-btn, auth-switch-mode-btn, auth-error-text, auth-back-btn). Added password visibility toggle. Verified via screenshots - both modes render."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED: Login screen design verified - blue gradient hero (#0EA5E9, #38BDF8, #7DD3FC) with white rounded logo badge (chat icon), 'Welcome back!' title, white rounded-top form sheet. Email and Password inputs with leading icons (mail, lock). Password field has eye toggle button (auth-toggle-password-btn) - tested toggle functionality (show/hide). Gradient 'Log In' button. Divider 'New to LinguaConnect?'. Outlined 'Create an account' button. Switched to signup mode - shows 'Create your account' title, Name input field visible, 'Log in instead' button. Empty form submission shows error 'Please fill in all fields' (auth-error-text). Login with mei@demo.com / Demo1234! successful - tab bar appeared. All design elements match HelloTalk style."
 
 ## Test Run — User Feedback Round 2 (chat scroll fix, revert language chips, remove phrase card)
 user_problem_statement: User reported - (1) profile preview language indicators should go back to the OLD design (code + underline + dots + name below) but with slightly smaller text; (2) chat page has a scrolling problem; (3) remove the Daily Phrase card from Connect.

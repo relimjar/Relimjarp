@@ -747,6 +747,7 @@ const makeStyles = (colors: ThemeColors) =>
       fontFamily: fonts.textBold,
       fontSize: 11.5,
       color: colors.onSurface,
+      letterSpacing: 0.2,
     },
     langAccent: {
       width: "100%",
@@ -770,7 +771,7 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.brand,
     },
     langName: {
-      fontFamily: fonts.text,
+      fontFamily: fonts.textSemi,
       fontSize: 9.5,
       color: colors.onSurfaceSecondary,
       marginTop: 3,

@@ -11,7 +11,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
@@ -19,7 +18,6 @@ import { VipBadge } from "@/src/components/Badges";
 import { countryToCode } from "@/src/constants/countries";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useChatSocket } from "@/src/hooks/use-chat-socket";
-import { useCollapsibleHeader } from "@/src/hooks/use-collapsible-header";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { api, Conversation } from "@/src/utils/api";
 import { timeAgo } from "@/src/utils/time";
@@ -53,7 +51,6 @@ export default function Chats() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const { onScroll, onLayout, collapsibleStyle } = useCollapsibleHeader();
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +93,7 @@ export default function Chats() {
   };
 
   const listHeader = (
-    <View onLayout={onLayout}>
+    <View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -162,11 +159,8 @@ export default function Chats() {
         </Pressable>
       </View>
 
-      {/* Shortcuts + search — collapse away on scroll down, reveal on
-          scroll up. The title bar above never moves. */}
-      <Animated.View style={[styles.collapsibleWrap, collapsibleStyle]}>
-        {listHeader}
-      </Animated.View>
+      {/* Shortcuts + search — pinned; only the conversation list scrolls. */}
+      {listHeader}
 
       {loading ? (
         <View style={styles.center}>
@@ -177,8 +171,6 @@ export default function Chats() {
           data={filtered}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.center}>

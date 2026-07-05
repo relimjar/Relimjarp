@@ -14,7 +14,6 @@ import {
   Text,
   View,
 } from "react-native";
-import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
@@ -24,7 +23,6 @@ import { countryToCode } from "@/src/constants/countries";
 import { LANGUAGES, PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
-import { useCollapsibleHeader } from "@/src/hooks/use-collapsible-header";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { api, Conversation, User } from "@/src/utils/api";
 
@@ -49,7 +47,6 @@ export default function Connect() {
   const [addLangOpen, setAddLangOpen] = useState(false);
   const [addingLang, setAddingLang] = useState(false);
   const [vipBusy, setVipBusy] = useState(false);
-  const { onScroll, onLayout, collapsibleStyle } = useCollapsibleHeader();
 
   const load = useCallback(async () => {
     setError(null);
@@ -154,16 +151,37 @@ export default function Connect() {
     const isNew =
       item.created_at && dayjs().diff(dayjs(item.created_at), "day") < 7;
     const tags: { label: string; kind: "new" | "active" | "neutral" }[] = [];
+    // Perfect match: they natively speak what I learn & learn my language.
+    const teachesMe =
+      !!item.native_language && myLearning.includes(item.native_language);
+    const learnsMine =
+      !!user?.native_language && learning.includes(user.native_language);
+    if (teachesMe && learnsMine)
+      tags.push({ label: "Perfect match", kind: "new" });
     if (isNew) tags.push({ label: "New", kind: "new" });
     if (item.is_online) tags.push({ label: "Very active", kind: "active" });
+    const sharedInterests = (item.interests || []).filter((i) =>
+      (user?.interests || []).includes(i),
+    );
+    if (sharedInterests.length > 0)
+      tags.push({ label: "Similar interests", kind: "active" });
+    if (user?.age && item.age && Math.abs(user.age - item.age) <= 5)
+      tags.push({ label: "Similar age", kind: "active" });
+    if (user?.country && item.country && user.country === item.country)
+      tags.push({ label: "Nearby", kind: "neutral" });
     if (item.mbti) tags.push({ label: item.mbti, kind: "neutral" });
+    if ((item.streak_count || 0) >= 3)
+      tags.push({ label: "Serious learner", kind: "neutral" });
+    // Guarantee at least 2 varied tags per card.
     if (
-      user?.age &&
-      item.age &&
-      Math.abs(user.age - item.age) <= 5 &&
-      tags.length < 3
+      tags.length < 2 &&
+      sharedInterests.length === 0 &&
+      (item.interests || []).length > 0
     )
-      tags.push({ label: "Similar age range", kind: "active" });
+      tags.push({ label: `Loves ${item.interests![0]}`, kind: "neutral" });
+    if (tags.length < 2)
+      tags.push({ label: "Language exchange", kind: "neutral" });
+    const shownTags = tags.slice(0, 3);
 
     const subtitle =
       item.bio?.trim() ||
@@ -234,9 +252,9 @@ export default function Connect() {
             {subtitle}
           </Text>
 
-          {tags.length > 0 && (
+          {shownTags.length > 0 && (
             <View style={styles.tagRow}>
-              {tags.map((t) => (
+              {shownTags.map((t) => (
                 <View
                   key={t.label}
                   style={[
@@ -287,10 +305,9 @@ export default function Connect() {
         </View>
       </View>
 
-      {/* Category tabs + language chips — collapse away on scroll down,
-          reveal on scroll up. The title bar above never moves. */}
-      <Animated.View style={[styles.collapsibleWrap, collapsibleStyle]}>
-        <View onLayout={onLayout}>
+      {/* Category tabs + language chips — pinned; only the list scrolls. */}
+      <View>
+        <View>
           <View>
             <ScrollView
               horizontal
@@ -351,7 +368,7 @@ export default function Connect() {
             </ScrollView>
           </View>
         </View>
-      </Animated.View>
+      </View>
 
       {loading ? (
         <View style={styles.center}>
@@ -369,8 +386,6 @@ export default function Connect() {
           data={partners}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
-          onScroll={onScroll}
-          scrollEventThrottle={16}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           ListEmptyComponent={
             <View style={styles.center}>
