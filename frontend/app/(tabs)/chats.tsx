@@ -3,7 +3,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
@@ -18,6 +18,7 @@ import { VipBadge } from "@/src/components/Badges";
 import { countryToCode } from "@/src/constants/countries";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useChatSocket } from "@/src/hooks/use-chat-socket";
+import { useCollapsibleHeader } from "@/src/hooks/use-collapsible-header";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { api, Conversation } from "@/src/utils/api";
 import { timeAgo } from "@/src/utils/time";
@@ -51,6 +52,7 @@ export default function Chats() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const { onScroll, onLayout, collapsibleStyle } = useCollapsibleHeader();
 
   const load = useCallback(async () => {
     try {
@@ -93,7 +95,7 @@ export default function Chats() {
   };
 
   const listHeader = (
-    <View>
+    <View onLayout={onLayout}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -159,16 +161,23 @@ export default function Chats() {
         </Pressable>
       </View>
 
+      {/* Shortcuts + search — collapse away on scroll down, reveal on
+          scroll up. The title bar above never moves. */}
+      <Animated.View style={[styles.collapsibleWrap, collapsibleStyle]}>
+        {listHeader}
+      </Animated.View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.brand} />
         </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
           data={filtered}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={listHeader}
           contentContainerStyle={styles.list}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View style={styles.center}>
@@ -280,6 +289,9 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.xs,
       paddingBottom: spacing.sm,
+    },
+    collapsibleWrap: {
+      overflow: "hidden",
     },
     headerIconBtn: {
       width: 38,

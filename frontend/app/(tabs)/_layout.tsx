@@ -12,9 +12,9 @@ export default function TabsLayout() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { chatUnread, momentsUnread, profileUnread } = useNotifications();
-  // Reserve room for the device's home indicator / nav bar, but keep a
-  // comfortable minimum gap so the bar never sits flush against the edge.
-  const bottomGap = Math.max(insets.bottom, 12);
+  // Reserve room for the device's home indicator / nav bar, plus a little
+  // extra lift so the icon row sits comfortably clear of the very edge.
+  const bottomGap = Math.max(insets.bottom, 12) + 10;
 
   return (
     <Tabs

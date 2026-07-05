@@ -1,0 +1,57 @@
+{
+  "summary": "Frontend-only spot check of 2 UI polish items: (1) bottom tab bar bottom gap, (2) scroll-collapsible secondary header on Connect/Chats. Tab bar gap change looks good. Collapsible header animation is BROKEN in web preview - the category/filter chip rows on Connect never collapse or fade regardless of scroll amount/direction, verified reproducibly across multiple scroll attempts and after an Expo restart (fresh bundle). Regression checks (chip taps, category filter, chat search) all pass fine.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Connect screen collapsible header (category tabs + language filter chips)",
+        "issue": "Scrolling the partner list down by a large amount (15-20 wheel events, list content visibly changed/scrolled through many cards) does NOT collapse/hide the category-tabs row or language-filter-chips row. bounding_box() of 'connect-cat-all' stayed pixel-identical (x:16,y:63,w:42,h:30) before and after scrolling in 3 separate test runs, including after a fresh `sudo supervisorctl restart expo`. The Animated.View wrapping collapsibleStyle never animates height/opacity down.",
+        "testID": "connect-cat-all / connect-collapsible-wrap",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Chats screen collapsible header (shortcuts + search)",
+        "issue": "Could not fully verify scroll-collapse behavior because the demo account used only has 2 conversations, which do not overflow the viewport enough to produce a scrollable list. However since Chats uses the exact same shared hook (useCollapsibleHeader) as Connect, and Connect's collapse demonstrably does not fire, this is very likely broken here too by the same root cause.",
+        "testID": "chats-shortcut-courses / chats-search-input",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Tabs bottom bar (_layout.tsx)",
+        "issues": [
+          "No design issues found - the added bottomGap (insets.bottom or 12, +10) visibly lifts the icon/label row off the bottom edge consistently across all 5 tabs, bar remains full-width/docked as requested."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "src/hooks/use-collapsible-header.ts",
+        "issue": "useAnimatedScrollHandler's onScroll worklet does not appear to be updating `progress`/`measuredHeight` shared values in the web preview (react-native-web + reanimated 4.1.1 + react-native-worklets 0.5.1). Verified: (a) mouse wheel scroll genuinely scrolls the underlying Animated.FlatList (list content changes across screenshots), (b) no console/build errors after a full expo restart, (c) babel-preset-expo correctly auto-injects react-native-worklets/plugin (confirmed present in node_modules/babel-preset-expo). Suspect the worklet's `event.contentOffset`/threshold logic (dy>4/dy<-4 with 200ms withTiming) either never fires on RN-Web's synthetic scroll event, or the animated style recalculation isn't propagating to the DOM style on web. Needs main-agent investigation with reanimated 4 + web docs (known reanimated-on-web limitations exist) or by adding a console.log/runOnJS inside the worklet to confirm firing, and checking if `measuredHeight` (from onLayout) is ever non-zero before scroll starts."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "PRIORITY: Fix useCollapsibleHeader hook - scroll-based collapse/reveal animation for Connect (category+filter chip rows) and Chats (shortcuts+search) headers is not functioning at all in the web preview; chips remain fully visible and full-height regardless of scroll direction/amount.",
+    "Debug suggestion: add temporary console.log via runOnJS inside onScroll worklet to confirm the handler even fires on web; verify measuredHeight from onLayout is captured before first scroll (if 0, height interpolation range collapses to [0,0] and no visual change would ever be seen even if progress updates).",
+    "Re-verify on native/mobile build too since reanimated-on-web sometimes has partial support gaps vs native - if it works on native but not web, note that as a known web-preview limitation in comments, but this preview is what stakeholders review so it should still be fixed for web parity if possible.",
+    "No changes needed for tab bar bottom gap - working as intended."
+  ],
+  "critical_code_review_comments": [
+    "use-collapsible-header.ts: `measuredHeight` is set via onLayout and used inside a useAnimatedStyle worklet; on web, if onLayout fires late (after first render on web) there could be a race, but this alone doesn't explain persistent failure across many scroll events after the layout has clearly completed.",
+    "Consider also handling the case where the FlatList itself is shorter than the viewport (as reproduced on the Chats tab with only 2 items) - in that scenario collapse would never trigger by design since there's nothing to scroll; not a bug but worth a fallback/empty-state note.",
+    "No _id leakage, no hardcoded URLs observed in the reviewed files for this round."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A - not tested this round (no backend changes)", "frontend": "50%"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bottom tab bar gap = PASS. Scroll-collapsible header (Connect chips, Chats shortcuts/search) = FAIL in web preview - reproduced 3x with genuine list scrolling confirmed via changing rendered card content, bounding box of chip row never moved/shrunk. Regression checks (category tap, filter chip tap, chat search filter by name) all still work correctly. Use demo login mei@demo.com / Demo1234! for retest; note Chats demo data only has 2 conversations for this account which isn't enough to overflow viewport - may want an account with more chats to test Chats-tab scroll specifically once the hook is fixed.",
+  "rca_of_issue": "Reproduction: 1) Login as mei@demo.com. 2) On Connect tab, note bounding box of testID=connect-cat-all chip. 3) Scroll the partner list down significantly (mouse wheel, confirmed list content changes underneath). 4) Chip bounding box and visibility remain unchanged - no collapse animation observed. Root cause not fully isolated (no error logs), but implementation only differs from working reanimated-on-web scroll examples in that it interpolates a *layout-measured* height (measuredHeight from onLayout) rather than a fixed/pre-known height - if measuredHeight never gets set (stays 0) on web, then interpolate(progress,[0,1],[0,0]) is a no-op producing height:0 always collapsed-looking equal to expanded (both 0->height range collapses to 0), OR if measuredHeight IS set correctly but shared-value updates from the worklet aren't triggering a style re-render on the DOM for react-native-web. Recommend adding a runOnJS(console.log) debug inside the worklet plus logging measuredHeight.value to isolate which of the two it is."
+}

@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
@@ -23,6 +23,7 @@ import { countryToCode } from "@/src/constants/countries";
 import { LANGUAGES, PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useCollapsibleHeader } from "@/src/hooks/use-collapsible-header";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { api, Conversation, User } from "@/src/utils/api";
 
@@ -47,6 +48,7 @@ export default function Connect() {
   const [addLangOpen, setAddLangOpen] = useState(false);
   const [addingLang, setAddingLang] = useState(false);
   const [vipBusy, setVipBusy] = useState(false);
+  const { onScroll, onLayout, collapsibleStyle } = useCollapsibleHeader();
 
   const load = useCallback(async () => {
     setError(null);
@@ -284,67 +286,71 @@ export default function Connect() {
         </View>
       </View>
 
-      {/* Category tabs */}
-      <View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.catRow}
-        >
-          {CATEGORIES.map((c) => {
-            const active = category === c.key;
-            return (
-              <Pressable
-                key={c.key}
-                testID={`connect-cat-${c.key}`}
-                onPress={() => setCategory(c.key)}
-                style={[styles.catItem, active && styles.catItemActive]}
-              >
-                <Text style={[styles.catText, active && styles.catTextActive]}>
-                  {c.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Language chips */}
-      <View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterRow}
-        >
-          {filterChips.map((chip) => {
-            const active = filter === chip.key;
-            return (
-              <Pressable
-                key={chip.key}
-                testID={`connect-filter-${chip.key}`}
-                onPress={() => setFilter(chip.key)}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-              >
-                {chip.key !== "match" && <FlagIcon code={chip.key} size={14} />}
-                <Text
-                  style={[styles.filterText, active && styles.filterTextActive]}
-                >
-                  {chip.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-          {myLearning.length < 3 && (
-            <Pressable
-              testID="connect-add-language-btn"
-              onPress={() => setAddLangOpen(true)}
-              style={[styles.filterChip, styles.addChip]}
+      {/* Category tabs + language chips — collapse away on scroll down,
+          reveal on scroll up. The title bar above never moves. */}
+      <Animated.View style={[styles.collapsibleWrap, collapsibleStyle]}>
+        <View onLayout={onLayout}>
+          <View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.catRow}
             >
-              <Ionicons name="add" size={18} color={colors.brand} />
-            </Pressable>
-          )}
-        </ScrollView>
-      </View>
+              {CATEGORIES.map((c) => {
+                const active = category === c.key;
+                return (
+                  <Pressable
+                    key={c.key}
+                    testID={`connect-cat-${c.key}`}
+                    onPress={() => setCategory(c.key)}
+                    style={[styles.catItem, active && styles.catItemActive]}
+                  >
+                    <Text style={[styles.catText, active && styles.catTextActive]}>
+                      {c.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          <View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {filterChips.map((chip) => {
+                const active = filter === chip.key;
+                return (
+                  <Pressable
+                    key={chip.key}
+                    testID={`connect-filter-${chip.key}`}
+                    onPress={() => setFilter(chip.key)}
+                    style={[styles.filterChip, active && styles.filterChipActive]}
+                  >
+                    {chip.key !== "match" && <FlagIcon code={chip.key} size={14} />}
+                    <Text
+                      style={[styles.filterText, active && styles.filterTextActive]}
+                    >
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {myLearning.length < 3 && (
+                <Pressable
+                  testID="connect-add-language-btn"
+                  onPress={() => setAddLangOpen(true)}
+                  style={[styles.filterChip, styles.addChip]}
+                >
+                  <Ionicons name="add" size={18} color={colors.brand} />
+                </Pressable>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Animated.View>
 
       {loading ? (
         <View style={styles.center}>
@@ -358,10 +364,12 @@ export default function Connect() {
           </Pressable>
         </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
           data={partners}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           ItemSeparatorComponent={() => <View style={styles.sep} />}
           ListEmptyComponent={
             <View style={styles.center}>
@@ -460,6 +468,9 @@ const makeStyles = (colors: ThemeColors) =>
       paddingHorizontal: spacing.xl,
       paddingTop: spacing.sm,
       paddingBottom: spacing.sm,
+    },
+    collapsibleWrap: {
+      overflow: "hidden",
     },
     headerTitle: {
       fontFamily: fonts.display,
