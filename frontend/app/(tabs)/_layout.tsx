@@ -1,22 +1,61 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CheckInModal } from "@/src/components/CheckInModal";
+import { useAuth } from "@/src/context/AuthContext";
 import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts } from "@/src/theme";
+import { api } from "@/src/utils/api";
+
+interface CheckInReward {
+  streak: number;
+  coinsAwarded: number;
+  totalCoins: number;
+}
 
 export default function TabsLayout() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const { chatUnread, momentsUnread, profileUnread } = useNotifications();
+  const [reward, setReward] = useState<CheckInReward | null>(null);
+
+  // Daily streak check-in: runs once when the main app mounts. The backend
+  // is idempotent per UTC day, so repeat mounts are harmless no-ops.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    api
+      .post<{
+        already_checked_in: boolean;
+        coins_awarded: number;
+        streak_count: number;
+        coins: number;
+      }>("/users/me/check-in")
+      .then((res) => {
+        if (!active || res.already_checked_in || res.coins_awarded <= 0) return;
+        setReward({
+          streak: res.streak_count,
+          coinsAwarded: res.coins_awarded,
+          totalCoins: res.coins,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
   // Reserve room for the device's home indicator / nav bar, plus a little
   // extra lift so the icon row sits comfortably clear of the very edge.
   const bottomGap = Math.max(insets.bottom, 12) + 10;
 
   return (
+    <>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -131,6 +170,14 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    <CheckInModal
+      visible={!!reward}
+      streak={reward?.streak ?? 1}
+      coinsAwarded={reward?.coinsAwarded ?? 0}
+      totalCoins={reward?.totalCoins ?? 0}
+      onClose={() => setReward(null)}
+    />
+    </>
   );
 }
 

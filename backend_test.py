@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Backend test for Voice Room + Moments Share-to-Moments feature
-Tests the new POST /api/rooms/{room_id}/share-to-moments endpoint
+Backend test for Daily Phrase + Check-in Rewards feature
+Tests GET /api/phrases/daily and POST /api/users/me/check-in
 """
 import requests
 import json
+import time
 
-BASE_URL = "https://ui-feature-check.preview.emergentagent.com/api"
+BASE_URL = "https://edf855b1-a946-4795-a4f1-66392dbb697e.preview.emergentagent.com/api"
 
 # Test credentials
-USER_A = {"email": "mei@demo.com", "password": "Demo1234!"}
-USER_B = {"email": "diego@demo.com", "password": "Demo1234!"}
+USER_MEI = {"email": "mei@demo.com", "password": "Demo1234!"}
 
 def login(email, password):
     """Login and return auth token"""
@@ -20,6 +20,26 @@ def login(email, password):
         return None
     data = resp.json()
     return data.get("token")
+
+def register_new_user():
+    """Register a brand new user for check-in testing"""
+    timestamp = int(time.time())
+    email = f"testuser_{timestamp}@lingua.app"
+    password = "Test1234!"
+    name = f"Test User {timestamp}"
+    
+    resp = requests.post(f"{BASE_URL}/auth/register", json={
+        "email": email,
+        "password": password,
+        "name": name
+    })
+    
+    if resp.status_code != 201:
+        print(f"❌ Registration failed: {resp.status_code} {resp.text}")
+        return None, None
+    
+    data = resp.json()
+    return data.get("token"), email
 
 def get_headers(token):
     """Get auth headers"""
@@ -32,326 +52,306 @@ def print_step(step_num, description):
     print('='*80)
 
 def main():
-    print("🧪 VOICE ROOM SHARE-TO-MOMENTS FEATURE TEST")
+    print("🧪 DAILY PHRASE + CHECK-IN REWARDS FEATURE TEST")
     print("="*80)
     
-    # Login both users
-    print("\n📝 Logging in users...")
-    token_a = login(USER_A["email"], USER_A["password"])
-    token_b = login(USER_B["email"], USER_B["password"])
+    # ========================================================================
+    # PART 1: GET /api/phrases/daily TESTS
+    # ========================================================================
+    print("\n" + "="*80)
+    print("PART 1: GET /api/phrases/daily TESTS")
+    print("="*80)
     
-    if not token_a or not token_b:
-        print("❌ Failed to login users. Aborting test.")
+    # Login mei for phrase tests
+    print("\n📝 Logging in mei@demo.com...")
+    token_mei = login(USER_MEI["email"], USER_MEI["password"])
+    
+    if not token_mei:
+        print("❌ Failed to login mei@demo.com. Aborting test.")
         return
     
-    print(f"✅ User A (mei@demo.com) logged in")
-    print(f"✅ User B (diego@demo.com) logged in")
+    print(f"✅ mei@demo.com logged in")
+    headers_mei = get_headers(token_mei)
     
-    headers_a = get_headers(token_a)
-    headers_b = get_headers(token_b)
-    
-    # Get user IDs
-    resp_a = requests.get(f"{BASE_URL}/auth/me", headers=headers_a)
-    resp_b = requests.get(f"{BASE_URL}/auth/me", headers=headers_b)
-    user_a_id = resp_a.json()["id"]
-    user_b_id = resp_b.json()["id"]
-    print(f"User A ID: {user_a_id}")
-    print(f"User B ID: {user_b_id}")
-    
-    # STEP 1: User A creates room WITHOUT share_to_moments
-    print_step(1, "User A (mei) creates room WITHOUT share_to_moments")
-    room_data = {
-        "title": "Share Test Room",
-        "language": "en",
-        "languages": ["en"],
-        "mode": "chat",
-        "is_private": False,
-        "share_to_moments": False
-    }
-    resp = requests.post(f"{BASE_URL}/rooms", json=room_data, headers=headers_a)
+    # TEST 1: Without auth → 401/403
+    print_step(1, "GET /api/phrases/daily WITHOUT auth → expect 401/403")
+    resp = requests.get(f"{BASE_URL}/phrases/daily")
     print(f"Status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
     
-    if resp.status_code != 201:
-        print(f"❌ FAILED: Expected 201, got {resp.status_code}")
+    if resp.status_code not in [401, 403]:
+        print(f"❌ FAILED: Expected 401 or 403, got {resp.status_code}")
         return
     
-    room = resp.json()
-    room_id = room["id"]
-    print(f"✅ PASSED: Room created with ID: {room_id}")
-    print(f"   Title: {room['title']}")
-    print(f"   Mode: {room['mode']}")
-    print(f"   Is Private: {room['is_private']}")
+    print(f"✅ PASSED: Correctly rejected without auth ({resp.status_code})")
     
-    # STEP 2: GET /api/moments as user A - confirm NO new moment
-    print_step(2, "GET /api/moments as user A - confirm NO new moment for this room")
-    resp = requests.get(f"{BASE_URL}/moments", headers=headers_a)
+    # TEST 2: With auth, ?lang=ja → 200 with roman (non-null)
+    print_step(2, "GET /api/phrases/daily?lang=ja WITH auth → expect 200 with roman non-null")
+    resp = requests.get(f"{BASE_URL}/phrases/daily?lang=ja", headers=headers_mei)
+    print(f"Status: {resp.status_code}")
+    
+    if resp.status_code != 200:
+        print(f"❌ FAILED: Expected 200, got {resp.status_code}")
+        print(f"Response: {resp.text}")
+        return
+    
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2, ensure_ascii=False)}")
+    
+    # Verify required fields
+    required_fields = ["lang", "lang_name", "text", "roman", "meaning", "category", "date"]
+    for field in required_fields:
+        if field not in data:
+            print(f"❌ FAILED: Missing required field '{field}'")
+            return
+    
+    if data["lang"] != "ja":
+        print(f"❌ FAILED: Expected lang='ja', got '{data['lang']}'")
+        return
+    
+    if data["lang_name"] != "Japanese":
+        print(f"❌ FAILED: Expected lang_name='Japanese', got '{data['lang_name']}'")
+        return
+    
+    if data["roman"] is None:
+        print(f"❌ FAILED: Expected roman to be non-null for Japanese, got None")
+        return
+    
+    print(f"✅ PASSED: Japanese phrase with all required fields")
+    print(f"   lang: {data['lang']}")
+    print(f"   lang_name: {data['lang_name']}")
+    print(f"   text: {data['text']}")
+    print(f"   roman: {data['roman']}")
+    print(f"   meaning: {data['meaning']}")
+    print(f"   category: {data['category']}")
+    print(f"   date: {data['date']}")
+    
+    # TEST 3: ?lang=en → roman is null
+    print_step(3, "GET /api/phrases/daily?lang=en → expect roman is null")
+    resp = requests.get(f"{BASE_URL}/phrases/daily?lang=en", headers=headers_mei)
     print(f"Status: {resp.status_code}")
     
     if resp.status_code != 200:
         print(f"❌ FAILED: Expected 200, got {resp.status_code}")
         return
     
-    moments = resp.json()
-    initial_moment_count = len(moments)
-    room_moments = [m for m in moments if m.get("room") and m["room"].get("id") == room_id]
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2, ensure_ascii=False)}")
     
-    print(f"Total moments: {initial_moment_count}")
-    print(f"Moments for room {room_id}: {len(room_moments)}")
-    
-    if len(room_moments) > 0:
-        print(f"❌ FAILED: Expected 0 moments for this room (share_to_moments was false), found {len(room_moments)}")
+    if data["lang"] != "en":
+        print(f"❌ FAILED: Expected lang='en', got '{data['lang']}'")
         return
     
-    print(f"✅ PASSED: No moment created for room (share_to_moments was false at creation)")
+    if data["roman"] is not None:
+        print(f"❌ FAILED: Expected roman to be null for English, got '{data['roman']}'")
+        return
     
-    # STEP 3: Host calls POST /api/rooms/{room_id}/share-to-moments
-    print_step(3, "Host (user A) calls POST /api/rooms/{room_id}/share-to-moments")
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/share-to-moments", headers=headers_a)
+    print(f"✅ PASSED: English phrase with roman=null")
+    print(f"   text: {data['text']}")
+    print(f"   meaning: {data['meaning']}")
+    
+    # TEST 4: ?lang=zz (invalid) → falls back to user's learning language or "en"
+    print_step(4, "GET /api/phrases/daily?lang=zz (invalid) → expect fallback, still 200")
+    resp = requests.get(f"{BASE_URL}/phrases/daily?lang=zz", headers=headers_mei)
     print(f"Status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
     
-    if resp.status_code != 201:
-        print(f"❌ FAILED: Expected 201, got {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"❌ FAILED: Expected 200 (fallback), got {resp.status_code}")
         return
     
-    share_resp = resp.json()
-    if share_resp.get("shared") != True:
-        print(f"❌ FAILED: Expected {{shared: true}}, got {share_resp}")
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2, ensure_ascii=False)}")
+    
+    # Should fallback to a valid language (user's learning language or 'en')
+    valid_langs = ["en", "es", "fr", "de", "it", "pt", "zh", "ja", "ko", "ru", "ar", "hi", "tr", "nl", "pl", "sv", "vi", "th", "id", "el"]
+    if data["lang"] not in valid_langs:
+        print(f"❌ FAILED: Expected fallback to valid language, got '{data['lang']}'")
         return
     
-    print(f"✅ PASSED: Room shared to moments successfully")
+    print(f"✅ PASSED: Invalid lang code falls back to '{data['lang']}' (still 200)")
     
-    # STEP 4: GET /api/moments as user A - confirm NEW moment exists
-    print_step(4, "GET /api/moments as user A - confirm NEW moment with room details")
-    resp = requests.get(f"{BASE_URL}/moments", headers=headers_a)
+    # TEST 5: No lang param → uses user's learning language
+    print_step(5, "GET /api/phrases/daily (no lang param) → expect 200, uses user's learning language")
+    resp = requests.get(f"{BASE_URL}/phrases/daily", headers=headers_mei)
     print(f"Status: {resp.status_code}")
     
     if resp.status_code != 200:
         print(f"❌ FAILED: Expected 200, got {resp.status_code}")
         return
     
-    moments = resp.json()
-    new_moment_count = len(moments)
-    room_moments = [m for m in moments if m.get("room") and m["room"].get("id") == room_id]
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2, ensure_ascii=False)}")
     
-    print(f"Total moments: {new_moment_count}")
-    print(f"Moments for room {room_id}: {len(room_moments)}")
-    
-    if len(room_moments) != 1:
-        print(f"❌ FAILED: Expected 1 moment for this room, found {len(room_moments)}")
+    if data["lang"] not in valid_langs:
+        print(f"❌ FAILED: Expected valid language, got '{data['lang']}'")
         return
     
-    moment = room_moments[0]
-    print(f"\nMoment details:")
-    print(f"  ID: {moment['id']}")
-    print(f"  Text: {moment['text']}")
-    print(f"  Room ID: {moment['room']['id']}")
-    print(f"  Room is_live: {moment['room']['is_live']}")
-    print(f"  Room title: {moment['room'].get('title')}")
+    print(f"✅ PASSED: No lang param returns phrase in '{data['lang']}'")
     
-    # Verify moment details
-    if moment["room"]["id"] != room_id:
-        print(f"❌ FAILED: Moment room.id ({moment['room']['id']}) != room_id ({room_id})")
-        return
+    # ========================================================================
+    # PART 2: POST /api/users/me/check-in TESTS
+    # ========================================================================
+    print("\n" + "="*80)
+    print("PART 2: POST /api/users/me/check-in TESTS")
+    print("="*80)
     
-    if moment["room"]["is_live"] != True:
-        print(f"❌ FAILED: Expected room.is_live=true, got {moment['room']['is_live']}")
-        return
-    
-    if moment["room"].get("title") != "Share Test Room":
-        print(f"❌ FAILED: Expected room.title='Share Test Room', got {moment['room'].get('title')}")
-        return
-    
-    print(f"✅ PASSED: Moment created with correct room details (is_live=true, title='Share Test Room')")
-    
-    # STEP 5: Call share-to-moments AGAIN - should create SECOND moment
-    print_step(5, "Call POST /api/rooms/{room_id}/share-to-moments AGAIN (repeatable sharing)")
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/share-to-moments", headers=headers_a)
+    # TEST 6: Without auth → 401/403
+    print_step(6, "POST /api/users/me/check-in WITHOUT auth → expect 401/403")
+    resp = requests.post(f"{BASE_URL}/users/me/check-in")
     print(f"Status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
     
-    if resp.status_code != 201:
-        print(f"❌ FAILED: Expected 201, got {resp.status_code}")
+    if resp.status_code not in [401, 403]:
+        print(f"❌ FAILED: Expected 401 or 403, got {resp.status_code}")
         return
     
-    print(f"✅ PASSED: Second share succeeded (201)")
+    print(f"✅ PASSED: Correctly rejected without auth ({resp.status_code})")
     
-    # Verify 2 moments now exist
-    resp = requests.get(f"{BASE_URL}/moments", headers=headers_a)
-    moments = resp.json()
-    room_moments = [m for m in moments if m.get("room") and m["room"].get("id") == room_id]
+    # TEST 7: Register a brand new user for check-in testing
+    print_step(7, "Register a brand new user for check-in testing")
+    new_token, new_email = register_new_user()
     
-    print(f"Moments for room {room_id}: {len(room_moments)}")
-    
-    if len(room_moments) != 2:
-        print(f"❌ FAILED: Expected 2 moments for this room (repeatable sharing), found {len(room_moments)}")
+    if not new_token:
+        print("❌ FAILED: Could not register new user")
         return
     
-    print(f"✅ PASSED: Second moment created - repeatable sharing works (2 moments total)")
+    print(f"✅ PASSED: New user registered: {new_email}")
+    headers_new = get_headers(new_token)
     
-    # STEP 6: User B (non-host) tries to share - should fail with 403
-    print_step(6, "User B (diego, NOT host) tries POST /api/rooms/{room_id}/share-to-moments")
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/share-to-moments", headers=headers_b)
+    # TEST 8: First check-in → already_checked_in=false, coins_awarded>=15
+    print_step(8, "First check-in → expect already_checked_in=false, coins_awarded>=15")
+    resp = requests.post(f"{BASE_URL}/users/me/check-in", headers=headers_new)
     print(f"Status: {resp.status_code}")
-    print(f"Response: {resp.text}")
-    
-    if resp.status_code != 403:
-        print(f"❌ FAILED: Expected 403 (only host can share), got {resp.status_code}")
-        return
-    
-    resp_data = resp.json()
-    if "only the host" not in resp_data.get("detail", "").lower():
-        print(f"❌ FAILED: Expected 'only the host' error message, got: {resp_data.get('detail')}")
-        return
-    
-    print(f"✅ PASSED: Non-host correctly rejected with 403 (only host can share)")
-    
-    # STEP 7: User B joins room and raises hand
-    print_step(7, "User B joins room and raises hand")
-    
-    # Join room
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/join", headers=headers_b)
-    print(f"Join status: {resp.status_code}")
     
     if resp.status_code != 200:
-        print(f"❌ FAILED: User B join failed with {resp.status_code}")
+        print(f"❌ FAILED: Expected 200, got {resp.status_code}")
+        print(f"Response: {resp.text}")
         return
     
-    print(f"✅ User B joined room")
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2)}")
     
-    # Raise hand
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/hand", headers=headers_b)
-    print(f"Hand raise status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
+    # Verify required fields
+    required_fields = ["already_checked_in", "coins_awarded", "streak_count", "coins"]
+    for field in required_fields:
+        if field not in data:
+            print(f"❌ FAILED: Missing required field '{field}'")
+            return
     
-    if resp.status_code != 200:
-        print(f"❌ FAILED: Hand raise failed with {resp.status_code}")
+    if data["already_checked_in"] != False:
+        print(f"❌ FAILED: Expected already_checked_in=false, got {data['already_checked_in']}")
         return
     
-    hand_resp = resp.json()
-    if hand_resp.get("hand_raised") != True:
-        print(f"❌ FAILED: Expected hand_raised=true, got {hand_resp}")
+    if data["coins_awarded"] < 15:
+        print(f"❌ FAILED: Expected coins_awarded>=15, got {data['coins_awarded']}")
         return
     
-    print(f"✅ User B raised hand")
-    
-    # Verify in room details
-    resp = requests.get(f"{BASE_URL}/rooms/{room_id}", headers=headers_a)
-    room = resp.json()
-    
-    print(f"\nRoom members:")
-    user_b_member = None
-    for member in room["members"]:
-        print(f"  - {member.get('name')}: role={member['role']}, hand_raised={member['hand_raised']}")
-        if member["id"] == user_b_id:
-            user_b_member = member
-    
-    if not user_b_member:
-        print(f"❌ FAILED: User B not found in room members")
+    if data["streak_count"] < 1:
+        print(f"❌ FAILED: Expected streak_count>=1, got {data['streak_count']}")
         return
     
-    if user_b_member["hand_raised"] != True:
-        print(f"❌ FAILED: User B hand_raised should be true, got {user_b_member['hand_raised']}")
+    if not isinstance(data["coins"], int):
+        print(f"❌ FAILED: Expected coins to be int, got {type(data['coins'])}")
         return
     
-    if user_b_member["role"] != "listener":
-        print(f"❌ FAILED: User B role should be 'listener', got {user_b_member['role']}")
-        return
+    first_coins = data["coins"]
+    coins_awarded = data["coins_awarded"]
     
-    print(f"✅ PASSED: User B in room with hand_raised=true and role='listener'")
+    print(f"✅ PASSED: First check-in successful")
+    print(f"   already_checked_in: {data['already_checked_in']}")
+    print(f"   coins_awarded: {data['coins_awarded']}")
+    print(f"   streak_count: {data['streak_count']}")
+    print(f"   coins: {data['coins']}")
     
-    # STEP 8: Host accepts - change role to speaker
-    print_step(8, "Host accepts - change User B role to 'speaker'")
-    
-    role_data = {
-        "user_id": user_b_id,
-        "role": "speaker"
-    }
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/role", json=role_data, headers=headers_a)
+    # TEST 9: Second check-in same day → already_checked_in=true, coins_awarded=0
+    print_step(9, "Second check-in same day → expect already_checked_in=true, coins_awarded=0")
+    resp = requests.post(f"{BASE_URL}/users/me/check-in", headers=headers_new)
     print(f"Status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
     
     if resp.status_code != 200:
-        print(f"❌ FAILED: Role change failed with {resp.status_code}")
+        print(f"❌ FAILED: Expected 200, got {resp.status_code}")
         return
     
-    print(f"✅ Role change request succeeded")
+    data = resp.json()
+    print(f"Response: {json.dumps(data, indent=2)}")
     
-    # Verify role change and hand_raised reset
-    resp = requests.get(f"{BASE_URL}/rooms/{room_id}", headers=headers_a)
-    room = resp.json()
-    
-    print(f"\nRoom members after role change:")
-    user_b_member = None
-    for member in room["members"]:
-        print(f"  - {member.get('name')}: role={member['role']}, hand_raised={member['hand_raised']}")
-        if member["id"] == user_b_id:
-            user_b_member = member
-    
-    if not user_b_member:
-        print(f"❌ FAILED: User B not found in room members")
+    if data["already_checked_in"] != True:
+        print(f"❌ FAILED: Expected already_checked_in=true, got {data['already_checked_in']}")
         return
     
-    if user_b_member["role"] != "speaker":
-        print(f"❌ FAILED: User B role should be 'speaker', got {user_b_member['role']}")
+    if data["coins_awarded"] != 0:
+        print(f"❌ FAILED: Expected coins_awarded=0, got {data['coins_awarded']}")
         return
     
-    if user_b_member["hand_raised"] != False:
-        print(f"❌ FAILED: User B hand_raised should reset to false, got {user_b_member['hand_raised']}")
+    if data["coins"] != first_coins:
+        print(f"❌ FAILED: Expected coins to remain {first_coins}, got {data['coins']}")
         return
     
-    print(f"✅ PASSED: User B role='speaker' and hand_raised reset to false")
+    print(f"✅ PASSED: Second check-in idempotent (already_checked_in=true, coins unchanged)")
+    print(f"   already_checked_in: {data['already_checked_in']}")
+    print(f"   coins_awarded: {data['coins_awarded']}")
+    print(f"   coins: {data['coins']}")
     
-    # STEP 9: End room and verify moments show is_live=false
-    print_step(9, "End room and verify moments show is_live=false")
+    # ========================================================================
+    # PART 3: SMOKE TESTS (existing endpoints)
+    # ========================================================================
+    print("\n" + "="*80)
+    print("PART 3: SMOKE TESTS (existing endpoints)")
+    print("="*80)
     
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/end", headers=headers_a)
-    print(f"End room status: {resp.status_code}")
-    print(f"Response: {json.dumps(resp.json(), indent=2)}")
+    # TEST 10: POST /api/auth/login with mei@demo.com
+    print_step(10, "POST /api/auth/login with mei@demo.com/Demo1234!")
+    resp = requests.post(f"{BASE_URL}/auth/login", json={
+        "email": "mei@demo.com",
+        "password": "Demo1234!"
+    })
+    print(f"Status: {resp.status_code}")
     
     if resp.status_code != 200:
-        print(f"❌ FAILED: End room failed with {resp.status_code}")
+        print(f"❌ FAILED: Login failed with {resp.status_code}")
+        print(f"Response: {resp.text}")
         return
     
-    print(f"✅ Room ended successfully")
-    
-    # Verify moments show is_live=false
-    resp = requests.get(f"{BASE_URL}/moments", headers=headers_a)
-    moments = resp.json()
-    room_moments = [m for m in moments if m.get("room") and m["room"].get("id") == room_id]
-    
-    print(f"\nMoments for ended room:")
-    all_false = True
-    for i, moment in enumerate(room_moments, 1):
-        is_live = moment["room"].get("is_live")
-        print(f"  Moment {i}: is_live={is_live}")
-        if is_live != False:
-            all_false = False
-    
-    if len(room_moments) != 2:
-        print(f"❌ FAILED: Expected 2 moments for this room, found {len(room_moments)}")
+    data = resp.json()
+    if "token" not in data:
+        print(f"❌ FAILED: Missing 'token' in response")
         return
     
-    if not all_false:
-        print(f"❌ FAILED: All moments should show is_live=false after room ended")
+    print(f"✅ PASSED: Login successful, token received")
+    
+    # TEST 11: GET /api/users/partners with token
+    print_step(11, "GET /api/users/partners with token")
+    resp = requests.get(f"{BASE_URL}/users/partners", headers=headers_mei)
+    print(f"Status: {resp.status_code}")
+    
+    if resp.status_code != 200:
+        print(f"❌ FAILED: Partners endpoint failed with {resp.status_code}")
+        print(f"Response: {resp.text}")
         return
     
-    print(f"✅ PASSED: Both moments show is_live=false (computed live from room state)")
+    data = resp.json()
+    if not isinstance(data, list):
+        print(f"❌ FAILED: Expected list response, got {type(data)}")
+        return
+    
+    print(f"✅ PASSED: Partners endpoint working, returned {len(data)} partners")
     
     # FINAL SUMMARY
     print("\n" + "="*80)
-    print("🎉 ALL TESTS PASSED (9/9)")
+    print("🎉 ALL TESTS PASSED (11/11)")
     print("="*80)
-    print("✅ Step 1: Room created without share_to_moments")
-    print("✅ Step 2: No moment created initially")
-    print("✅ Step 3: Host shared room to moments (201)")
-    print("✅ Step 4: Moment created with is_live=true, correct title")
-    print("✅ Step 5: Second share created second moment (repeatable)")
-    print("✅ Step 6: Non-host rejected with 403")
-    print("✅ Step 7: User B joined and raised hand (listener)")
-    print("✅ Step 8: Host changed role to speaker, hand_raised reset")
-    print("✅ Step 9: Room ended, both moments show is_live=false")
+    print("\n📋 PART 1: GET /api/phrases/daily (5/5)")
+    print("✅ Test 1: Without auth → 401/403")
+    print("✅ Test 2: ?lang=ja → 200 with roman non-null")
+    print("✅ Test 3: ?lang=en → roman is null")
+    print("✅ Test 4: ?lang=zz (invalid) → fallback, still 200")
+    print("✅ Test 5: No lang param → uses user's learning language")
+    print("\n📋 PART 2: POST /api/users/me/check-in (4/4)")
+    print("✅ Test 6: Without auth → 401/403")
+    print("✅ Test 7: Register new user")
+    print("✅ Test 8: First check-in → already_checked_in=false, coins_awarded>=15")
+    print("✅ Test 9: Second check-in → already_checked_in=true, coins_awarded=0")
+    print("\n📋 PART 3: SMOKE TESTS (2/2)")
+    print("✅ Test 10: POST /api/auth/login → success")
+    print("✅ Test 11: GET /api/users/partners → success")
     print("="*80)
 
 if __name__ == "__main__":

@@ -198,10 +198,18 @@ export default function Voice() {
           }
           ListEmptyComponent={
             <View style={styles.center}>
-              <Ionicons name="mic-outline" size={56} color={colors.borderStrong} />
+              <LinearGradient
+                colors={["#38BDF8", "#6366F1"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.emptyIconCircle}
+              >
+                <Ionicons name="mic" size={42} color="#FFFFFF" />
+              </LinearGradient>
               <Text style={styles.emptyTitle}>No live rooms right now</Text>
               <Text style={styles.emptyText}>
-                Start one and invite partners to practice speaking!
+                Be the first! Start a room and practice speaking with partners
+                around the world.
               </Text>
             </View>
           }
@@ -678,6 +686,13 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 18,
       color: colors.onSurface,
       marginTop: spacing.md,
+    },
+    emptyIconCircle: {
+      width: 88,
+      height: 88,
+      borderRadius: 44,
+      alignItems: "center",
+      justifyContent: "center",
     },
     emptyText: {
       fontFamily: fonts.text,

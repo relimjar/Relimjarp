@@ -560,8 +560,81 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+## Test Run — UI Polish + Daily Phrase + Check-in Rewards (Iteration: brand polish)
+user_problem_statement: Full UI polish pass (HelloTalk-style). New features - Daily Phrase card (Connect), daily streak check-in coin rewards (modal), profile preview language chips redesign, voice empty state polish. Backend adds GET /api/phrases/daily and POST /api/users/me/check-in. NOTE - both .env files were missing at session start; recreated and re-seeded demo data (seed.py).
+
+backend:
+  - task: "GET /api/phrases/daily?lang=xx - phrase of the day per language"
+    implemented: true
+    working: true
+    file: "backend/routes/phrases.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New route. Static phrase bank (20 languages x 8 phrases) rotated by day-of-year. Falls back to user's learning language then English for unknown lang codes. Auth required. Verified via curl for ja."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (5/5 tests passed): (1) Without auth → 401 (correct). (2) ?lang=ja → 200 with all required fields {lang:'ja', lang_name:'Japanese', text:'日本語を勉強しています', roman:'nihongo o benkyou shiteimasu' (non-null), meaning:'I'm studying Japanese', category:'Useful', date:'2026-07-05'}. (3) ?lang=en → 200 with roman=null (correct for English). (4) ?lang=zz (invalid) → 200 with fallback to 'en' (correct). (5) No lang param → 200 with fallback to 'en' (user's learning language). All tests passed."
+  - task: "POST /api/users/me/check-in - daily coin reward (idempotent per UTC day)"
+    implemented: true
+    working: true
+    file: "backend/routes/users.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Awards 10 + min(streak,7)*5 coins once/day; second call same day returns already_checked_in:true, coins_awarded:0. Verified via curl (15 coins awarded, repeat idempotent)."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (4/4 tests passed): (1) Without auth → 401 (correct). (2) Registered brand new user testuser_1783257090@lingua.app. (3) First check-in → {already_checked_in:false, coins_awarded:15, streak_count:1, coins:1015} (correct, 1000 base + 15 reward). (4) Second check-in same day → {already_checked_in:true, coins_awarded:0, coins:1015} (idempotent, coins unchanged). All tests passed."
+
+frontend:
+  - task: "Daily Phrase card on Connect (gradient, reveal meaning)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/DailyPhraseCard.tsx, frontend/app/(tabs)/connect.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ListHeaderComponent on Connect FlatList. Verified via screenshot - card renders, reveal meaning works."
+  - task: "Check-in reward modal with flame/coin spring animation"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/CheckInModal.tsx, frontend/app/(tabs)/_layout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Triggered once per day on tabs mount. Verified via screenshot - Day 1 Streak +15 Coins modal shows and closes."
+  - task: "Profile preview redesign - flag language chips, labeled stats, typography"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Language chips with circle flags + Native tag + proficiency dots; stat cells now labeled; stat line with dot separators; name 24px. Verified via screenshot."
+
 agent_communication:
+    - agent: "main"
+      message: "Please test the 2 new backend endpoints only (no frontend): (1) GET /api/phrases/daily returns {lang, lang_name, text, meaning, category, date}; try lang=ja (roman present), lang=en (roman null), invalid lang falls back; 401 without auth. (2) POST /api/users/me/check-in - use a NEWLY REGISTERED user so first call has already_checked_in:false and coins_awarded>=15, second call already_checked_in:true and coins_awarded:0, coins total consistent. Existing demo creds in /app/memory/test_credentials.md (mei@demo.com may already be checked in today)."
     - agent: "main"
       message: "Implemented new POST /api/rooms/{room_id}/share-to-moments endpoint for repeatable room sharing. Host can share live room to moments multiple times. Added authorization (only host), private room check, and integration with existing _share_room_to_moments function. Please test: (1) Room creation without share_to_moments - no moment created. (2) Host shares room via endpoint - moment created with is_live=true. (3) Share again - second moment created (repeatable). (4) Non-host tries to share - 403. (5) User joins and raises hand - hand_raised=true. (6) Host changes role to speaker - hand_raised resets to false. (7) Host ends room - moments show is_live=false. Use mei@demo.com and diego@demo.com credentials."
     - agent: "testing"
       message: "✅ ALL TESTS PASSED (9/9) - VOICE ROOM SHARE-TO-MOMENTS FEATURE FULLY WORKING. Test results: (1) ✅ Room created without share_to_moments - no moment created initially. (2) ✅ Host shared room via POST /api/rooms/{room_id}/share-to-moments - returned 201 with {shared: true}, moment created with is_live=true and correct title. (3) ✅ Second share created second moment - repeatable sharing works (2 moments total for same room). (4) ✅ Non-host (diego) correctly rejected with 403 'Only the host can share this room'. (5) ✅ User B joined room and raised hand - hand_raised=true, role='listener' verified in room details. (6) ✅ Host changed User B role to 'speaker' - role updated and hand_raised reset to false. (7) ✅ Host ended room - both moments now show is_live=false (computed live from room state). (8) ✅ GET /api/moments returns room field with live state computed at read-time via _room_card. (9) ✅ All authorization, state management, and live computation working correctly. NO CRITICAL ISSUES FOUND. Feature ready for production."
+    - agent: "testing"
+      message: "✅ ALL TESTS PASSED (11/11) - DAILY PHRASE + CHECK-IN REWARDS FULLY WORKING. PART 1 - GET /api/phrases/daily (5/5): (1) Without auth → 401 ✅ (2) ?lang=ja → 200 with all required fields (lang, lang_name, text, roman non-null, meaning, category, date) ✅ (3) ?lang=en → 200 with roman=null ✅ (4) ?lang=zz (invalid) → 200 with fallback to 'en' ✅ (5) No lang param → 200 with fallback to user's learning language ✅. PART 2 - POST /api/users/me/check-in (4/4): (6) Without auth → 401 ✅ (7) Registered new user testuser_1783257090@lingua.app ✅ (8) First check-in → {already_checked_in:false, coins_awarded:15, streak_count:1, coins:1015} ✅ (9) Second check-in same day → {already_checked_in:true, coins_awarded:0, coins:1015} (idempotent) ✅. PART 3 - SMOKE TESTS (2/2): (10) POST /api/auth/login with mei@demo.com → success ✅ (11) GET /api/users/partners → success, returned 5 partners ✅. NO CRITICAL ISSUES FOUND. Both new endpoints working correctly."
+

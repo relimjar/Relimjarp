@@ -17,6 +17,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Avatar } from "@/src/components/Avatar";
 import { VipBadge } from "@/src/components/Badges";
+import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { PROFICIENCY_LEVELS, langName } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
@@ -150,29 +151,39 @@ export default function UserProfile() {
       ? [profile.learning_language]
       : [];
 
-  const LangCol = ({
+  const LangChip = ({
     code,
-    accent,
+    isNative,
     dots,
   }: {
     code?: string | null;
-    accent?: boolean;
+    isNative?: boolean;
     dots?: number;
   }) => (
-    <View style={styles.langCol}>
-      <Text style={styles.langCode}>{(code || "").toUpperCase()}</Text>
-      {accent ? <View style={styles.langAccent} /> : null}
-      {typeof dots === "number" ? (
+    <View
+      style={[
+        styles.langChip,
+        isNative ? styles.langChipNative : styles.langChipLearning,
+      ]}
+    >
+      <FlagIcon code={code} size={16} />
+      <Text
+        style={[styles.langChipName, isNative && styles.langChipNameNative]}
+        numberOfLines={1}
+      >
+        {langName(code)}
+      </Text>
+      {isNative ? (
+        <View style={styles.nativeTag}>
+          <Text style={styles.nativeTagText}>Native</Text>
+        </View>
+      ) : typeof dots === "number" ? (
         <View style={styles.dotsRow}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <View
-              key={i}
-              style={[styles.dot, i < dots && styles.dotFilled]}
-            />
+            <View key={i} style={[styles.dot, i < dots && styles.dotFilled]} />
           ))}
         </View>
       ) : null}
-      <Text style={styles.langName}>{langName(code)}</Text>
     </View>
   );
 
@@ -305,17 +316,16 @@ export default function UserProfile() {
 
           {/* Languages */}
           <View style={styles.langRow}>
-            <LangCol code={profile.native_language} accent />
-            <Ionicons
-              name="swap-horizontal"
-              size={18}
-              color={colors.onSurfaceSecondary}
-              style={{ marginHorizontal: spacing.md }}
-            />
+            <LangChip code={profile.native_language} isNative />
+            <View style={styles.swapCircle}>
+              <Ionicons
+                name="swap-horizontal"
+                size={13}
+                color={colors.onSurfaceSecondary}
+              />
+            </View>
             {learningList.slice(0, 3).map((c, i) => (
-              <View key={c} style={{ marginRight: spacing.md }}>
-                <LangCol code={c} dots={i === 0 ? dotsFilled : 1} />
-              </View>
+              <LangChip key={c} code={c} dots={i === 0 ? dotsFilled : 1} />
             ))}
           </View>
 
@@ -325,12 +335,14 @@ export default function UserProfile() {
               <Text style={styles.statLineNum}>{profile.following_count ?? 0}</Text>{" "}
               Following
             </Text>
+            <View style={styles.statDivider} />
             <Text style={styles.statLineText}>
               <Text style={styles.statLineNum}>{profile.followers_count ?? 0}</Text>{" "}
               Followers
             </Text>
+            <View style={styles.statDivider} />
             <Text style={styles.statLineText}>
-              <Text style={styles.statLineNum}>{daysJoined}d</Text> Joined
+              <Text style={styles.statLineNum}>{daysJoined}</Text> Days here
             </Text>
           </View>
 
@@ -375,27 +387,28 @@ export default function UserProfile() {
                 <View style={styles.infoTopRow}>
                   <View style={styles.infoTopItem}>
                     <Ionicons name="calendar" size={16} color={colors.success} />
-                    <Text style={styles.infoTopText}>{daysJoined}d Joined</Text>
+                    <Text style={styles.infoTopText}>{daysJoined} Days Joined</Text>
                   </View>
                   <View style={styles.infoTopItem}>
-                    <Ionicons name="book" size={16} color={colors.brand} />
+                    <Ionicons name="flame" size={16} color={colors.warning} />
                     <Text style={styles.infoTopText}>
-                      {profile.streak_count ?? 0} Points
+                      {profile.streak_count ?? 0} Day Streak
                     </Text>
                   </View>
                 </View>
                 <View style={styles.infoStatsRow}>
                   {[
-                    { icon: "flame" as IconName, color: colors.warning, value: profile.streak_count ?? 0 },
-                    { icon: "planet" as IconName, color: "#8B5CF6", value: momentsCount },
-                    { icon: "people" as IconName, color: colors.brand, value: profile.followers_count ?? 0 },
-                    { icon: "person-add" as IconName, color: colors.success, value: profile.following_count ?? 0 },
-                    { icon: "language" as IconName, color: "#06B6D4", value: learningList.length },
-                    { icon: "ribbon" as IconName, color: colors.error, value: profile.is_vip ? 1 : 0 },
+                    { icon: "flame" as IconName, color: colors.warning, value: profile.streak_count ?? 0, label: "Streak" },
+                    { icon: "planet" as IconName, color: "#8B5CF6", value: momentsCount, label: "Moments" },
+                    { icon: "people" as IconName, color: colors.brand, value: profile.followers_count ?? 0, label: "Followers" },
+                    { icon: "person-add" as IconName, color: colors.success, value: profile.following_count ?? 0, label: "Following" },
+                    { icon: "language" as IconName, color: "#06B6D4", value: learningList.length, label: "Learning" },
+                    { icon: "ribbon" as IconName, color: colors.error, value: profile.is_vip ? 1 : 0, label: "Badges" },
                   ].map((s, i) => (
                     <View key={i} style={styles.infoStatCell}>
-                      <Ionicons name={s.icon} size={20} color={s.color} />
+                      <Ionicons name={s.icon} size={19} color={s.color} />
                       <Text style={styles.infoStatValue}>{s.value}</Text>
+                      <Text style={styles.infoStatLabel}>{s.label}</Text>
                     </View>
                   ))}
                 </View>
@@ -691,7 +704,8 @@ const makeStyles = (colors: ThemeColors) =>
     },
     name: {
       fontFamily: fonts.display,
-      fontSize: 22,
+      fontSize: 24,
+      letterSpacing: -0.3,
       color: colors.onSurface,
       flexShrink: 1,
     },
@@ -737,27 +751,56 @@ const makeStyles = (colors: ThemeColors) =>
     },
     langRow: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 6,
     },
-    langCol: {
-      alignItems: "flex-start",
+    langChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
     },
-    langCode: {
+    langChipNative: {
+      backgroundColor: colors.brandTertiary,
+    },
+    langChipLearning: {
+      backgroundColor: colors.surfaceSecondary,
+    },
+    langChipName: {
       fontFamily: fonts.textBold,
-      fontSize: 13,
+      fontSize: 12.5,
       color: colors.onSurface,
+      maxWidth: 92,
     },
-    langAccent: {
-      width: "100%",
-      height: 3,
-      borderRadius: 2,
+    langChipNameNative: {
+      color: colors.onBrandTertiary,
+    },
+    nativeTag: {
       backgroundColor: colors.success,
-      marginTop: 2,
+      borderRadius: radius.pill,
+      paddingHorizontal: 6,
+      paddingVertical: 1.5,
+    },
+    nativeTagText: {
+      fontFamily: fonts.textBold,
+      fontSize: 9,
+      color: "#FFFFFF",
+      letterSpacing: 0.3,
+    },
+    swapCircle: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: colors.surfaceSecondary,
+      alignItems: "center",
+      justifyContent: "center",
     },
     dotsRow: {
       flexDirection: "row",
-      gap: 3,
-      marginTop: 4,
+      gap: 2.5,
     },
     dot: {
       width: 4.5,
@@ -768,24 +811,26 @@ const makeStyles = (colors: ThemeColors) =>
     dotFilled: {
       backgroundColor: colors.brand,
     },
-    langName: {
-      fontFamily: fonts.text,
-      fontSize: 10.5,
-      color: colors.onSurfaceSecondary,
-      marginTop: 3,
-    },
     statLine: {
       flexDirection: "row",
-      gap: spacing.lg,
+      alignItems: "center",
+      gap: spacing.md,
       flexWrap: "wrap",
     },
+    statDivider: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: colors.borderStrong,
+    },
     statLineText: {
-      fontFamily: fonts.text,
-      fontSize: 14,
+      fontFamily: fonts.textSemi,
+      fontSize: 13.5,
       color: colors.onSurfaceSecondary,
     },
     statLineNum: {
       fontFamily: fonts.textBold,
+      fontSize: 14.5,
       color: colors.onSurface,
     },
     bioRow: {
@@ -860,13 +905,18 @@ const makeStyles = (colors: ThemeColors) =>
     },
     infoStatCell: {
       alignItems: "center",
-      gap: 4,
+      gap: 3,
       flex: 1,
     },
     infoStatValue: {
       fontFamily: fonts.textBold,
       fontSize: 14,
       color: colors.onSurface,
+    },
+    infoStatLabel: {
+      fontFamily: fonts.textSemi,
+      fontSize: 9.5,
+      color: colors.onSurfaceSecondary,
     },
     section: {
       backgroundColor: colors.surfaceSecondary,

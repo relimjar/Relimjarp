@@ -48,6 +48,36 @@ async def update_me(body: UserUpdate, current_user: CurrentUser):
     return user_public(current_user)
 
 
+@router.post("/me/check-in")
+async def daily_check_in(current_user: CurrentUser):
+    """Daily check-in reward: once per UTC day, award coins that scale with
+    the user's streak (10 base + 5 per streak day, capped at +35 bonus)."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    if current_user.get("last_checkin_date") == today:
+        return {
+            "already_checked_in": True,
+            "coins_awarded": 0,
+            "streak_count": current_user.get("streak_count") or 1,
+            "coins": current_user.get("coins", 0),
+        }
+    streak = current_user.get("streak_count") or 1
+    coins_awarded = 10 + min(streak, 7) * 5
+    await users_col.update_one(
+        {"_id": current_user["_id"]},
+        {
+            "$set": {"last_checkin_date": today},
+            "$inc": {"coins": coins_awarded},
+        },
+    )
+    new_coins = current_user.get("coins", 0) + coins_awarded
+    return {
+        "already_checked_in": False,
+        "coins_awarded": coins_awarded,
+        "streak_count": streak,
+        "coins": new_coins,
+    }
+
+
 @router.post("/me/vip")
 async def upgrade_vip(current_user: CurrentUser):
     """Free VIP upgrade (payment can be added later)."""
