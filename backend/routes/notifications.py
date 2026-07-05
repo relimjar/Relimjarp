@@ -12,7 +12,7 @@ MOMENTS_TYPES = ["like", "comment", "reply"]
 PROFILE_TYPES = ["follow", "visit"]
 
 
-ALL_TYPES = MOMENTS_TYPES + PROFILE_TYPES
+ALL_TYPES = MOMENTS_TYPES + PROFILE_TYPES + ["announcement"]
 
 
 @router.get("")

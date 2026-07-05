@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,13 +17,23 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/src/components/Avatar";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/utils/api";
 
-const BRAND = "#0EA5E9";
-const DANGER = "#EF4444";
-const OK = "#22C55E";
-const GOLD = "#F59E0B";
+// ── Design tokens (self-contained professional dark console) ──
+const BG = "#0B1220";
+const CARD = "#131C2F";
+const CARD_2 = "#1A2540";
+const BORDER = "#223052";
+const TEXT = "#E6EDF7";
+const MUTED = "#8FA3C4";
+const BRAND = "#38BDF8";
+const OK = "#34D399";
+const DANGER = "#F87171";
+const GOLD = "#FBBF24";
+const PURPLE = "#A78BFA";
+const ORANGE = "#FB923C";
 
 const confirmAction = (message: string, onConfirm: () => void) => {
   if (Platform.OS === "web") {
@@ -47,10 +59,16 @@ interface AdminStats {
   coins_in_circulation: number;
 }
 
+interface SignupPoint {
+  date: string;
+  count: number;
+}
+
 interface AdminUserRow {
   id: string;
   name: string;
   email: string;
+  avatar_url?: string | null;
   coins: number;
   is_vip: boolean;
   vip_tier?: string | null;
@@ -59,6 +77,19 @@ interface AdminUserRow {
   restricted: boolean;
   is_online: boolean;
   country?: string;
+  created_at?: string;
+}
+
+interface AdminRoomRow {
+  id: string;
+  title: string;
+  language?: string;
+  topic?: string;
+  is_live: boolean;
+  is_private: boolean;
+  member_count: number;
+  host_name: string;
+  host_email?: string | null;
   created_at?: string;
 }
 
@@ -91,8 +122,63 @@ interface IntegrationFile {
   updated_at: string | null;
 }
 
-const TABS = ["Overview", "Users", "Market", "Moments", "Integrations", "Settings"] as const;
-type Tab = (typeof TABS)[number];
+const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "Overview", icon: "grid" },
+  { key: "Users", icon: "people" },
+  { key: "Rooms", icon: "mic" },
+  { key: "Moments", icon: "planet" },
+  { key: "Market", icon: "storefront" },
+  { key: "Broadcast", icon: "megaphone" },
+  { key: "Integrations", icon: "extension-puzzle" },
+  { key: "Settings", icon: "settings" },
+];
+type Tab =
+  | "Overview"
+  | "Users"
+  | "Rooms"
+  | "Moments"
+  | "Market"
+  | "Broadcast"
+  | "Integrations"
+  | "Settings";
+
+// ── Shared bits ──
+const Chip = ({ label, color }: { label: string; color: string }) => (
+  <View style={[s.chip, { backgroundColor: `${color}26`, borderColor: `${color}55` }]}>
+    <Text style={[s.chipText, { color }]}>{label}</Text>
+  </View>
+);
+
+const ActionBtn = ({
+  label,
+  color,
+  onPress,
+  testID,
+  icon,
+}: {
+  label: string;
+  color: string;
+  onPress: () => void;
+  testID?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+}) => (
+  <Pressable
+    testID={testID}
+    onPress={onPress}
+    style={({ pressed }) => [
+      s.actionBtn,
+      { borderColor: `${color}66`, backgroundColor: `${color}1A` },
+      pressed && { opacity: 0.7 },
+    ]}
+  >
+    {icon ? <Ionicons name={icon} size={13} color={color} /> : null}
+    <Text style={[s.actionBtnText, { color }]}>{label}</Text>
+  </Pressable>
+);
+
+const SectionNote = ({ children }: { children: React.ReactNode }) => (
+  <Text style={s.sectionNote}>{children}</Text>
+);
 
 export default function AdminPanel() {
   const { user, loading, login, logout } = useAuth();
@@ -116,7 +202,8 @@ export default function AdminPanel() {
 
   if (loading) {
     return (
-      <View style={s.center}>
+      <View style={[s.container, s.center]}>
+        <StatusBar style="light" />
         <ActivityIndicator size="large" color={BRAND} />
       </View>
     );
@@ -125,39 +212,63 @@ export default function AdminPanel() {
   if (!user) {
     return (
       <SafeAreaView style={s.container} testID="admin-login-screen">
-        <View style={s.loginCard}>
-          <View style={s.loginIcon}>
-            <Ionicons name="shield-checkmark" size={34} color={BRAND} />
+        <StatusBar style="light" />
+        <View style={s.loginWrap}>
+          <View style={s.loginCard}>
+            <LinearGradient
+              colors={["#0EA5E9", "#6366F1"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.loginIcon}
+            >
+              <Ionicons name="shield-checkmark" size={30} color="#FFFFFF" />
+            </LinearGradient>
+            <Text style={s.loginTitle}>Admin Console</Text>
+            <Text style={s.loginSub}>
+              LinguaConnect · restricted area, authorized staff only
+            </Text>
+            <View style={s.loginField}>
+              <Ionicons name="mail-outline" size={16} color={MUTED} />
+              <TextInput
+                testID="admin-email-input"
+                style={s.loginInput}
+                placeholder="Admin email"
+                placeholderTextColor={MUTED}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+            <View style={s.loginField}>
+              <Ionicons name="lock-closed-outline" size={16} color={MUTED} />
+              <TextInput
+                testID="admin-password-input"
+                style={s.loginInput}
+                placeholder="Password"
+                placeholderTextColor={MUTED}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
+            {authError ? <Text style={s.error}>{authError}</Text> : null}
+            <Pressable
+              testID="admin-login-btn"
+              style={({ pressed }) => [s.primaryBtn, pressed && { opacity: 0.8 }]}
+              onPress={doLogin}
+              disabled={authBusy}
+            >
+              {authBusy ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <>
+                  <Ionicons name="log-in-outline" size={17} color="#FFF" />
+                  <Text style={s.primaryBtnText}>Sign in</Text>
+                </>
+              )}
+            </Pressable>
           </View>
-          <Text style={s.loginTitle}>Admin Console</Text>
-          <Text style={s.loginSub}>Restricted area — authorized staff only</Text>
-          <TextInput
-            testID="admin-email-input"
-            style={s.input}
-            placeholder="Admin email"
-            placeholderTextColor="#64748B"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            testID="admin-password-input"
-            style={s.input}
-            placeholder="Password"
-            placeholderTextColor="#64748B"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          {authError ? <Text style={s.error}>{authError}</Text> : null}
-          <Pressable testID="admin-login-btn" style={s.primaryBtn} onPress={doLogin} disabled={authBusy}>
-            {authBusy ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={s.primaryBtnText}>Sign in</Text>
-            )}
-          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -166,13 +277,21 @@ export default function AdminPanel() {
   if (!user.is_admin) {
     return (
       <SafeAreaView style={s.container} testID="admin-denied-screen">
-        <View style={s.loginCard}>
-          <Ionicons name="lock-closed" size={40} color={DANGER} />
-          <Text style={s.loginTitle}>Access denied</Text>
-          <Text style={s.loginSub}>This account does not have admin privileges.</Text>
-          <Pressable style={[s.primaryBtn, { backgroundColor: DANGER }]} onPress={logout}>
-            <Text style={s.primaryBtnText}>Log out</Text>
-          </Pressable>
+        <StatusBar style="light" />
+        <View style={s.loginWrap}>
+          <View style={s.loginCard}>
+            <Ionicons name="lock-closed" size={40} color={DANGER} />
+            <Text style={s.loginTitle}>Access denied</Text>
+            <Text style={s.loginSub}>
+              This account does not have admin privileges.
+            </Text>
+            <Pressable
+              style={[s.primaryBtn, { backgroundColor: DANGER }]}
+              onPress={logout}
+            >
+              <Text style={s.primaryBtnText}>Log out</Text>
+            </Pressable>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -180,43 +299,74 @@ export default function AdminPanel() {
 
   return (
     <SafeAreaView style={s.container} edges={["top", "bottom"]} testID="admin-dashboard">
+      <StatusBar style="light" />
+      {/* Top bar */}
       <View style={s.topBar}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Ionicons name="shield-checkmark" size={22} color={BRAND} />
-          <Text style={s.topTitle}>Admin Console</Text>
+        <LinearGradient
+          colors={["#0EA5E9", "#6366F1"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.topLogo}
+        >
+          <Ionicons name="shield-checkmark" size={17} color="#FFFFFF" />
+        </LinearGradient>
+        <View style={{ flex: 1 }}>
+          <Text style={s.topTitle}>LinguaConnect</Text>
+          <Text style={s.topSub}>Admin Console · {user.email}</Text>
         </View>
         <Pressable testID="admin-logout-btn" onPress={logout} style={s.logoutBtn}>
-          <Ionicons name="log-out-outline" size={18} color={DANGER} />
-          <Text style={{ color: DANGER, fontSize: 13, fontWeight: "600" }}>Logout</Text>
+          <Ionicons name="log-out-outline" size={17} color={DANGER} />
         </Pressable>
       </View>
-      <View style={s.tabBar}>
-        {TABS.map((t) => (
-          <Pressable
-            key={t}
-            testID={`admin-tab-${t.toLowerCase()}`}
-            style={[s.tabBtn, tab === t && s.tabBtnActive]}
-            onPress={() => setTab(t)}
-          >
-            <Text style={[s.tabText, tab === t && s.tabTextActive]}>{t}</Text>
-          </Pressable>
-        ))}
+
+      {/* Tab pills */}
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={s.tabBar}
+        >
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                testID={`admin-tab-${t.key.toLowerCase()}`}
+                style={[s.tabBtn, active && s.tabBtnActive]}
+                onPress={() => setTab(t.key)}
+              >
+                <Ionicons
+                  name={t.icon}
+                  size={14}
+                  color={active ? "#082F49" : MUTED}
+                />
+                <Text style={[s.tabText, active && s.tabTextActive]}>{t.key}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
+
       {tab === "Overview" && <Overview />}
       {tab === "Users" && <Users />}
-      {tab === "Market" && <Market />}
+      {tab === "Rooms" && <Rooms />}
       {tab === "Moments" && <Moments />}
+      {tab === "Market" && <Market />}
+      {tab === "Broadcast" && <Broadcast />}
       {tab === "Integrations" && <Integrations />}
       {tab === "Settings" && <Settings />}
     </SafeAreaView>
   );
 }
 
+// ── Overview ──
 function Overview() {
   const [stats, setStats] = useState<AdminStats | null>(null);
+  const [signups, setSignups] = useState<SignupPoint[]>([]);
 
   useEffect(() => {
     api.get<AdminStats>("/admin/stats").then(setStats).catch(() => {});
+    api.get<SignupPoint[]>("/admin/signups?days=7").then(setSignups).catch(() => {});
   }, []);
 
   if (!stats) {
@@ -227,37 +377,83 @@ function Overview() {
     );
   }
 
-  const cards: [string, number, string][] = [
-    ["Total users", stats.total_users, "people"],
-    ["Online now", stats.online_now, "radio-button-on"],
-    ["New today", stats.new_users_today, "person-add"],
-    ["VIP users", stats.vip_users, "diamond"],
-    ["Banned", stats.banned_users, "ban"],
-    ["Moments", stats.total_moments, "images"],
-    ["Messages", stats.total_messages, "chatbubbles"],
-    ["Conversations", stats.total_conversations, "mail"],
-    ["Live rooms", stats.live_rooms, "mic"],
-    ["Coins in circulation", stats.coins_in_circulation, "logo-bitcoin"],
+  const cards: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+    { label: "New today", value: stats.new_users_today, icon: "person-add", color: OK },
+    { label: "VIP users", value: stats.vip_users, icon: "diamond", color: GOLD },
+    { label: "Live rooms", value: stats.live_rooms, icon: "mic", color: PURPLE },
+    { label: "Moments", value: stats.total_moments, icon: "planet", color: BRAND },
+    { label: "Messages", value: stats.total_messages, icon: "chatbubbles", color: ORANGE },
+    { label: "Chats", value: stats.total_conversations, icon: "mail", color: "#22D3EE" },
+    { label: "Banned", value: stats.banned_users, icon: "ban", color: DANGER },
+    { label: "Coins in economy", value: stats.coins_in_circulation, icon: "server", color: GOLD },
   ];
 
+  const maxSignup = Math.max(1, ...signups.map((p) => p.count));
+
   return (
-    <ScrollView contentContainerStyle={s.grid} testID="admin-overview">
-      {cards.map(([label, value, icon]) => (
-        <View key={label} style={s.statCard}>
-          <Ionicons name={icon as never} size={20} color={BRAND} />
-          <Text style={s.statValue}>{value}</Text>
-          <Text style={s.statLabel}>{label}</Text>
+    <ScrollView contentContainerStyle={s.page} testID="admin-overview">
+      {/* Hero */}
+      <LinearGradient
+        colors={["#0EA5E9", "#6366F1"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.hero}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={s.heroLabel}>TOTAL USERS</Text>
+          <Text style={s.heroValue}>{stats.total_users}</Text>
+          <View style={s.heroOnlineRow}>
+            <View style={s.onlineDot} />
+            <Text style={s.heroOnline}>{stats.online_now} online now</Text>
+          </View>
         </View>
-      ))}
+        <Ionicons name="people" size={56} color="rgba(255,255,255,0.25)" />
+      </LinearGradient>
+
+      {/* Stat grid */}
+      <View style={s.grid}>
+        {cards.map((c) => (
+          <View key={c.label} style={s.statCard}>
+            <View style={[s.statIcon, { backgroundColor: `${c.color}22` }]}>
+              <Ionicons name={c.icon} size={16} color={c.color} />
+            </View>
+            <Text style={s.statValue}>{c.value}</Text>
+            <Text style={s.statLabel}>{c.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Signup chart */}
+      <View style={s.panel}>
+        <Text style={s.panelTitle}>Signups · last 7 days</Text>
+        <View style={s.chartRow}>
+          {signups.map((p) => (
+            <View key={p.date} style={s.chartCol}>
+              <Text style={s.chartCount}>{p.count}</Text>
+              <View style={s.chartBarTrack}>
+                <View
+                  style={[
+                    s.chartBar,
+                    { height: `${Math.max(6, (p.count / maxSignup) * 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={s.chartDay}>{p.date.slice(5)}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
     </ScrollView>
   );
 }
 
+// ── Users ──
 function Users() {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<AdminUserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [coinEdit, setCoinEdit] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -307,157 +503,207 @@ function Users() {
   return (
     <View style={{ flex: 1 }} testID="admin-users">
       <View style={s.searchBox}>
-        <Ionicons name="search" size={16} color="#64748B" />
+        <Ionicons name="search" size={16} color={MUTED} />
         <TextInput
           testID="admin-user-search"
           style={s.searchInput}
-          placeholder="Search by name or email..."
-          placeholderTextColor="#64748B"
+          placeholder="Search by name or email…"
+          placeholderTextColor={MUTED}
           value={search}
           onChangeText={setSearch}
         />
+        <Text style={s.searchCount}>{rows.length}</Text>
       </View>
       {loading ? (
         <View style={s.center}>
           <ActivityIndicator size="large" color={BRAND} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 40 }}>
-          {rows.map((u) => (
-            <View key={u.id} style={s.userCard} testID={`admin-user-${u.id}`}>
-              <View style={s.userTop}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <Text style={s.userName}>{u.name}</Text>
-                    {u.is_admin && <Chip label="ADMIN" color={BRAND} />}
-                    {u.is_vip && <Chip label={`VIP ${u.vip_tier || ""}`} color={GOLD} />}
-                    {u.banned && <Chip label="BANNED" color={DANGER} />}
-                    {u.restricted && <Chip label="RESTRICTED" color="#F97316" />}
-                    {u.is_online && <Chip label="ONLINE" color={OK} />}
+        <ScrollView contentContainerStyle={s.page}>
+          {rows.map((u) => {
+            const open = expanded === u.id;
+            return (
+              <View key={u.id} style={s.card} testID={`admin-user-${u.id}`}>
+                <Pressable
+                  style={s.userTop}
+                  onPress={() => setExpanded(open ? null : u.id)}
+                >
+                  <View>
+                    <Avatar name={u.name} url={u.avatar_url} size={40} />
+                    {u.is_online && <View style={s.avatarOnline} />}
                   </View>
-                  <Text style={s.userMeta}>
-                    {u.email} · {u.country || "—"} · 🪙 {u.coins}
-                  </Text>
-                </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={s.userNameRow}>
+                      <Text style={s.userName} numberOfLines={1}>
+                        {u.name}
+                      </Text>
+                      {u.is_admin && <Chip label="ADMIN" color={BRAND} />}
+                      {u.is_vip && <Chip label="VIP" color={GOLD} />}
+                      {u.banned && <Chip label="BANNED" color={DANGER} />}
+                      {u.restricted && <Chip label="LIMITED" color={ORANGE} />}
+                    </View>
+                    <Text style={s.userMeta} numberOfLines={1}>
+                      {u.email} · {u.country || "—"} · 🪙 {u.coins}
+                    </Text>
+                  </View>
+                  {!u.is_admin && (
+                    <Ionicons
+                      name={open ? "chevron-up" : "chevron-down"}
+                      size={16}
+                      color={MUTED}
+                    />
+                  )}
+                </Pressable>
+                {open && !u.is_admin && (
+                  <View style={s.userActions}>
+                    <View style={s.actionsRow}>
+                      <ActionBtn
+                        testID={`admin-ban-${u.id}`}
+                        label={u.banned ? "Unban" : "Ban"}
+                        icon="ban"
+                        color={DANGER}
+                        onPress={() => toggleBan(u)}
+                      />
+                      <ActionBtn
+                        testID={`admin-restrict-${u.id}`}
+                        label={u.restricted ? "Unrestrict" : "Restrict"}
+                        icon="alert-circle"
+                        color={ORANGE}
+                        onPress={() => toggleRestrict(u)}
+                      />
+                      <ActionBtn
+                        testID={`admin-vip-${u.id}`}
+                        label={u.is_vip ? "Revoke VIP" : "Grant VIP"}
+                        icon="diamond"
+                        color={GOLD}
+                        onPress={() => toggleVip(u)}
+                      />
+                      <ActionBtn
+                        testID={`admin-delete-${u.id}`}
+                        label="Delete"
+                        icon="trash"
+                        color={DANGER}
+                        onPress={() => removeUser(u)}
+                      />
+                    </View>
+                    <View style={s.coinRow}>
+                      <TextInput
+                        testID={`admin-coins-input-${u.id}`}
+                        style={s.numInput}
+                        placeholder={String(u.coins)}
+                        placeholderTextColor={MUTED}
+                        keyboardType="numeric"
+                        value={coinEdit[u.id] ?? ""}
+                        onChangeText={(v) =>
+                          setCoinEdit((prev) => ({ ...prev, [u.id]: v }))
+                        }
+                      />
+                      <ActionBtn
+                        testID={`admin-coins-save-${u.id}`}
+                        label="Set coins"
+                        icon="server"
+                        color={BRAND}
+                        onPress={() => saveCoins(u)}
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
-              {!u.is_admin && (
-                <View style={s.userActions}>
-                  <ActionBtn
-                    testID={`admin-ban-${u.id}`}
-                    label={u.banned ? "Unban" : "Ban"}
-                    color={DANGER}
-                    onPress={() => toggleBan(u)}
-                  />
-                  <ActionBtn
-                    testID={`admin-restrict-${u.id}`}
-                    label={u.restricted ? "Unrestrict" : "Restrict"}
-                    color="#F97316"
-                    onPress={() => toggleRestrict(u)}
-                  />
-                  <ActionBtn
-                    testID={`admin-vip-${u.id}`}
-                    label={u.is_vip ? "Revoke VIP" : "Grant VIP"}
-                    color={GOLD}
-                    onPress={() => toggleVip(u)}
-                  />
-                  <ActionBtn
-                    testID={`admin-delete-${u.id}`}
-                    label="Delete"
-                    color="#7F1D1D"
-                    onPress={() => removeUser(u)}
-                  />
-                  <View style={s.coinRow}>
-                    <TextInput
-                      testID={`admin-coins-input-${u.id}`}
-                      style={s.coinInput}
-                      placeholder={String(u.coins)}
-                      placeholderTextColor="#64748B"
-                      keyboardType="numeric"
-                      value={coinEdit[u.id] ?? ""}
-                      onChangeText={(v) => setCoinEdit((prev) => ({ ...prev, [u.id]: v }))}
-                    />
-                    <ActionBtn
-                      testID={`admin-coins-save-${u.id}`}
-                      label="Set coins"
-                      color={BRAND}
-                      onPress={() => saveCoins(u)}
-                    />
-                  </View>
-                </View>
-              )}
-            </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>
   );
 }
 
-function Market() {
-  const [items, setItems] = useState<AdminMarketItem[]>([]);
-  const [priceEdit, setPriceEdit] = useState<Record<string, string>>({});
+// ── Rooms ──
+function Rooms() {
+  const [rows, setRows] = useState<AdminRoomRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(() => {
-    api.get<AdminMarketItem[]>("/admin/market").then(setItems).catch(() => {});
+    api
+      .get<AdminRoomRow[]>("/admin/rooms")
+      .then(setRows)
+      .finally(() => setLoading(false));
   }, []);
 
   useEffect(load, [load]);
 
-  const save = async (item: AdminMarketItem) => {
-    const val = parseInt(priceEdit[item.id] ?? "", 10);
-    if (isNaN(val) || val < 0) return;
-    await api.put(`/admin/market/${item.id}`, { price: val });
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, price: val } : i)));
-    setPriceEdit((prev) => ({ ...prev, [item.id]: "" }));
-  };
+  const endRoom = (r: AdminRoomRow) =>
+    confirmAction(`Force-end "${r.title}"?`, async () => {
+      await api.post(`/admin/rooms/${r.id}/end`);
+      setRows((prev) =>
+        prev.map((x) => (x.id === r.id ? { ...x, is_live: false } : x)),
+      );
+    });
 
-  const toggleDisabled = async (item: AdminMarketItem) => {
-    await api.put(`/admin/market/${item.id}`, { disabled: !item.disabled });
-    setItems((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, disabled: !item.disabled } : i)),
+  const removeRoom = (r: AdminRoomRow) =>
+    confirmAction(`Delete room "${r.title}" permanently?`, async () => {
+      await api.delete(`/admin/rooms/${r.id}`);
+      setRows((prev) => prev.filter((x) => x.id !== r.id));
+    });
+
+  if (loading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={BRAND} />
+      </View>
     );
-  };
+  }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 40 }} testID="admin-market">
-      {items.map((item) => (
-        <View key={item.id} style={s.userCard} testID={`admin-market-${item.id}`}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Text style={{ fontSize: 22 }}>{item.emoji}</Text>
+    <ScrollView contentContainerStyle={s.page} testID="admin-rooms">
+      <SectionNote>
+        Every voice room, live first. Force-end a live room or delete old ones.
+      </SectionNote>
+      {rows.length === 0 && <Text style={s.emptyText}>No rooms yet.</Text>}
+      {rows.map((r) => (
+        <View key={r.id} style={s.card} testID={`admin-room-${r.id}`}>
+          <View style={s.userTop}>
+            <View
+              style={[
+                s.roomIcon,
+                { backgroundColor: r.is_live ? `${OK}22` : `${MUTED}22` },
+              ]}
+            >
+              <Ionicons name="mic" size={17} color={r.is_live ? OK : MUTED} />
+            </View>
             <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={s.userName}>{item.name}</Text>
-                <Chip label={item.type.toUpperCase()} color="#8B5CF6" />
-                {item.disabled && <Chip label="DISABLED" color={DANGER} />}
+              <View style={s.userNameRow}>
+                <Text style={s.userName} numberOfLines={1}>
+                  {r.title}
+                </Text>
+                {r.is_live ? (
+                  <Chip label="LIVE" color={OK} />
+                ) : (
+                  <Chip label="ENDED" color={MUTED} />
+                )}
+                {r.is_private && <Chip label="PRIVATE" color={PURPLE} />}
               </View>
-              <Text style={s.userMeta}>
-                Current: 🪙 {item.price} (default {item.default_price})
+              <Text style={s.userMeta} numberOfLines={1}>
+                Host: {r.host_name} · {r.member_count} members ·{" "}
+                {(r.language || "").toUpperCase()} {r.topic ? `· ${r.topic}` : ""}
               </Text>
             </View>
           </View>
-          <View style={s.userActions}>
-            <View style={s.coinRow}>
-              <TextInput
-                testID={`admin-price-input-${item.id}`}
-                style={s.coinInput}
-                placeholder={String(item.price)}
-                placeholderTextColor="#64748B"
-                keyboardType="numeric"
-                value={priceEdit[item.id] ?? ""}
-                onChangeText={(v) => setPriceEdit((prev) => ({ ...prev, [item.id]: v }))}
-              />
+          <View style={s.actionsRow}>
+            {r.is_live && (
               <ActionBtn
-                testID={`admin-price-save-${item.id}`}
-                label="Set price"
-                color={BRAND}
-                onPress={() => save(item)}
+                testID={`admin-room-end-${r.id}`}
+                label="Force end"
+                icon="stop-circle"
+                color={ORANGE}
+                onPress={() => endRoom(r)}
               />
-            </View>
+            )}
             <ActionBtn
-              testID={`admin-market-toggle-${item.id}`}
-              label={item.disabled ? "Enable" : "Disable"}
-              color={item.disabled ? OK : DANGER}
-              onPress={() => toggleDisabled(item)}
+              testID={`admin-room-delete-${r.id}`}
+              label="Delete"
+              icon="trash"
+              color={DANGER}
+              onPress={() => removeRoom(r)}
             />
           </View>
         </View>
@@ -466,6 +712,7 @@ function Market() {
   );
 }
 
+// ── Moments ──
 function Moments() {
   const [rows, setRows] = useState<AdminMoment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -492,22 +739,28 @@ function Moments() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 40 }} testID="admin-moments">
+    <ScrollView contentContainerStyle={s.page} testID="admin-moments">
+      <SectionNote>Community feed moderation — remove anything unsafe.</SectionNote>
+      {rows.length === 0 && <Text style={s.emptyText}>No moments yet.</Text>}
       {rows.map((m) => (
-        <View key={m.id} style={s.userCard} testID={`admin-moment-${m.id}`}>
-          <Text style={s.userName}>{m.author_name}</Text>
+        <View key={m.id} style={s.card} testID={`admin-moment-${m.id}`}>
+          <View style={s.userNameRow}>
+            <Text style={s.userName}>{m.author_name}</Text>
+            {m.has_image && <Chip label="PHOTO" color={BRAND} />}
+          </View>
           <Text style={s.userMeta}>{m.author_email}</Text>
-          <Text style={{ color: "#CBD5E1", fontSize: 13, marginVertical: 6 }} numberOfLines={3}>
+          <Text style={s.momentText} numberOfLines={3}>
             {m.text || "(photo only)"}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={s.momentFoot}>
             <Text style={s.userMeta}>
-              ❤️ {m.like_count} · 💬 {m.comment_count} {m.has_image ? "· 📷" : ""}
+              ❤️ {m.like_count} · 💬 {m.comment_count}
             </Text>
             <View style={{ flex: 1 }} />
             <ActionBtn
               testID={`admin-moment-delete-${m.id}`}
               label="Delete"
+              icon="trash"
               color={DANGER}
               onPress={() => remove(m)}
             />
@@ -518,6 +771,184 @@ function Moments() {
   );
 }
 
+// ── Market ──
+function Market() {
+  const [items, setItems] = useState<AdminMarketItem[]>([]);
+  const [priceEdit, setPriceEdit] = useState<Record<string, string>>({});
+
+  const load = useCallback(() => {
+    api.get<AdminMarketItem[]>("/admin/market").then(setItems).catch(() => {});
+  }, []);
+
+  useEffect(load, [load]);
+
+  const save = async (item: AdminMarketItem) => {
+    const val = parseInt(priceEdit[item.id] ?? "", 10);
+    if (isNaN(val) || val < 0) return;
+    await api.put(`/admin/market/${item.id}`, { price: val });
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, price: val } : i)));
+    setPriceEdit((prev) => ({ ...prev, [item.id]: "" }));
+  };
+
+  const toggleDisabled = async (item: AdminMarketItem) => {
+    await api.put(`/admin/market/${item.id}`, { disabled: !item.disabled });
+    setItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, disabled: !item.disabled } : i)),
+    );
+  };
+
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-market">
+      <SectionNote>
+        Store items & pricing — changes apply instantly to all users.
+      </SectionNote>
+      {items.map((item) => (
+        <View key={item.id} style={s.card} testID={`admin-market-${item.id}`}>
+          <View style={s.userTop}>
+            <View style={s.marketEmoji}>
+              <Text style={{ fontSize: 20 }}>{item.emoji}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={s.userNameRow}>
+                <Text style={s.userName}>{item.name}</Text>
+                <Chip label={item.type.toUpperCase()} color={PURPLE} />
+                {item.disabled && <Chip label="DISABLED" color={DANGER} />}
+              </View>
+              <Text style={s.userMeta}>
+                🪙 {item.price} (default {item.default_price})
+              </Text>
+            </View>
+          </View>
+          <View style={s.coinRow}>
+            <TextInput
+              testID={`admin-price-input-${item.id}`}
+              style={s.numInput}
+              placeholder={String(item.price)}
+              placeholderTextColor={MUTED}
+              keyboardType="numeric"
+              value={priceEdit[item.id] ?? ""}
+              onChangeText={(v) =>
+                setPriceEdit((prev) => ({ ...prev, [item.id]: v }))
+              }
+            />
+            <ActionBtn
+              testID={`admin-price-save-${item.id}`}
+              label="Set price"
+              color={BRAND}
+              onPress={() => save(item)}
+            />
+            <ActionBtn
+              testID={`admin-market-toggle-${item.id}`}
+              label={item.disabled ? "Enable" : "Disable"}
+              color={item.disabled ? OK : DANGER}
+              onPress={() => toggleDisabled(item)}
+            />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+// ── Broadcast ──
+function Broadcast() {
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sentTo, setSentTo] = useState<number | null>(null);
+
+  const send = () => {
+    if (!title.trim() || !message.trim() || busy) return;
+    confirmAction(
+      "Send this announcement to EVERY user (in-app + push)?",
+      async () => {
+        setBusy(true);
+        setSentTo(null);
+        try {
+          const res = await api.post<{ sent: number }>("/admin/broadcast", {
+            title: title.trim(),
+            message: message.trim(),
+          });
+          setSentTo(res.sent);
+          setTitle("");
+          setMessage("");
+        } catch (e) {
+          Alert.alert(
+            "Broadcast",
+            e instanceof Error ? e.message : "Could not send. Try again.",
+          );
+        } finally {
+          setBusy(false);
+        }
+      },
+    );
+  };
+
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-broadcast">
+      <View style={s.panel}>
+        <View style={s.broadcastHead}>
+          <View style={[s.statIcon, { backgroundColor: `${PURPLE}22` }]}>
+            <Ionicons name="megaphone" size={16} color={PURPLE} />
+          </View>
+          <Text style={s.panelTitle}>Announcement to all users</Text>
+        </View>
+        <SectionNote>
+          Delivered to every user&apos;s Notifications feed instantly, plus a
+          push notification on their devices (best effort).
+        </SectionNote>
+        <Text style={s.fieldLabel}>Title</Text>
+        <TextInput
+          testID="admin-broadcast-title"
+          style={s.bigInput}
+          placeholder="e.g. New feature: Voice Rooms 2.0 🎉"
+          placeholderTextColor={MUTED}
+          value={title}
+          onChangeText={setTitle}
+          maxLength={80}
+        />
+        <Text style={s.fieldLabel}>Message</Text>
+        <TextInput
+          testID="admin-broadcast-message"
+          style={[s.bigInput, s.bigTextarea]}
+          placeholder="Write the announcement…"
+          placeholderTextColor={MUTED}
+          value={message}
+          onChangeText={setMessage}
+          multiline
+          maxLength={500}
+        />
+        <Pressable
+          testID="admin-broadcast-send"
+          style={({ pressed }) => [
+            s.primaryBtn,
+            (!title.trim() || !message.trim()) && { opacity: 0.5 },
+            pressed && { opacity: 0.8 },
+          ]}
+          onPress={send}
+          disabled={busy || !title.trim() || !message.trim()}
+        >
+          {busy ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Ionicons name="send" size={15} color="#FFF" />
+              <Text style={s.primaryBtnText}>Send to all users</Text>
+            </>
+          )}
+        </Pressable>
+        {sentTo !== null && (
+          <View style={s.sentBanner} testID="admin-broadcast-sent">
+            <Ionicons name="checkmark-circle" size={16} color={OK} />
+            <Text style={s.sentText}>Sent to {sentTo} users</Text>
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Integrations ──
 function Integrations() {
   const [files, setFiles] = useState<IntegrationFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -577,18 +1008,15 @@ function Integrations() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }}
-      testID="admin-integrations"
-    >
-      <Text style={{ color: "#94A3B8", fontSize: 13 }}>
-        Upload the config files 3rd-party integrations need — directly
-        here, no code change needed. After uploading, click Publish (top
-        right) and generate a new build for native changes to take effect.
-      </Text>
+    <ScrollView contentContainerStyle={s.page} testID="admin-integrations">
+      <SectionNote>
+        Upload the config files 3rd-party integrations need — no code change
+        required. After uploading, Publish and generate a new build for native
+        changes to take effect.
+      </SectionNote>
       {files.map((f) => (
-        <View key={f.id} style={s.userCard} testID={`admin-integration-${f.id}`}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View key={f.id} style={s.card} testID={`admin-integration-${f.id}`}>
+          <View style={s.userTop}>
             <Ionicons
               name={f.exists ? "checkmark-circle" : "alert-circle"}
               size={20}
@@ -607,8 +1035,8 @@ function Integrations() {
               </Text>
             </View>
           </View>
-          <Text style={{ color: "#CBD5E1", fontSize: 12.5 }}>{f.description}</Text>
-          <View style={s.userActions}>
+          <Text style={s.momentText}>{f.description}</Text>
+          <View style={s.actionsRow}>
             <ActionBtn
               testID={`admin-integration-upload-${f.id}`}
               label={
@@ -618,6 +1046,7 @@ function Integrations() {
                     ? "Replace file"
                     : "Upload file"
               }
+              icon="cloud-upload"
               color={BRAND}
               onPress={() => upload(f)}
             />
@@ -625,6 +1054,7 @@ function Integrations() {
               <ActionBtn
                 testID={`admin-integration-remove-${f.id}`}
                 label="Remove"
+                icon="trash"
                 color={DANGER}
                 onPress={() => remove(f)}
               />
@@ -636,6 +1066,7 @@ function Integrations() {
   );
 }
 
+// ── Settings ──
 function Settings() {
   const [cfg, setCfg] = useState<Record<string, string>>({});
   const [loaded, setLoaded] = useState(false);
@@ -675,186 +1106,514 @@ function Settings() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 40 }} testID="admin-settings">
-      <Text style={{ color: "#94A3B8", fontSize: 13 }}>
+    <ScrollView contentContainerStyle={s.page} testID="admin-settings">
+      <SectionNote>
         App-wide limits — changes apply instantly to all users.
-      </Text>
-      {FIELDS.map(([key, label]) => (
-        <View key={key} style={s.settingField}>
-          <Text style={s.settingLabel}>{label}</Text>
-          <TextInput
-            testID={`admin-cfg-${key}`}
-            style={s.coinInput}
-            keyboardType="numeric"
-            value={cfg[key] ?? ""}
-            onChangeText={(v) => setCfg((prev) => ({ ...prev, [key]: v }))}
-            placeholderTextColor="#64748B"
-          />
-        </View>
-      ))}
-      <Pressable testID="admin-cfg-save" style={s.primaryBtn} onPress={save}>
-        <Text style={s.primaryBtnText}>{saved ? "Saved ✓" : "Save settings"}</Text>
-      </Pressable>
+      </SectionNote>
+      <View style={s.panel}>
+        {FIELDS.map(([key, label]) => (
+          <View key={key} style={s.settingField}>
+            <Text style={s.settingLabel}>{label}</Text>
+            <TextInput
+              testID={`admin-cfg-${key}`}
+              style={s.numInput}
+              keyboardType="numeric"
+              value={cfg[key] ?? ""}
+              onChangeText={(v) => setCfg((prev) => ({ ...prev, [key]: v }))}
+              placeholderTextColor={MUTED}
+            />
+          </View>
+        ))}
+        <Pressable testID="admin-cfg-save" style={s.primaryBtn} onPress={save}>
+          <Text style={s.primaryBtnText}>{saved ? "Saved ✓" : "Save settings"}</Text>
+        </Pressable>
+      </View>
     </ScrollView>
   );
 }
 
-const Chip: React.FC<{ label: string; color: string }> = ({ label, color }) => (
-  <View style={[s.chip, { backgroundColor: `${color}22`, borderColor: color }]}>
-    <Text style={{ color, fontSize: 9, fontWeight: "700" }}>{label}</Text>
-  </View>
-);
-
-const ActionBtn: React.FC<{
-  label: string;
-  color: string;
-  onPress: () => void;
-  testID?: string;
-}> = ({ label, color, onPress, testID }) => (
-  <Pressable
-    testID={testID}
-    style={[s.actionBtn, { backgroundColor: color }]}
-    onPress={onPress}
-  >
-    <Text style={s.actionBtnText}>{label}</Text>
-  </Pressable>
-);
-
+// ── Styles ──
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F172A" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 200 },
-  loginCard: {
-    margin: 20,
-    marginTop: 80,
-    backgroundColor: "#1E293B",
-    borderRadius: 16,
-    padding: 24,
-    gap: 12,
+  container: {
+    flex: 1,
+    backgroundColor: BG,
+  },
+  center: {
+    flex: 1,
     alignItems: "center",
-    maxWidth: 420,
-    width: "92%",
-    alignSelf: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  // Login
+  loginWrap: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 20,
+  },
+  loginCard: {
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
   },
   loginIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(14,165,233,0.14)",
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  loginTitle: { color: "#F8FAFC", fontSize: 22, fontWeight: "700" },
-  loginSub: { color: "#94A3B8", fontSize: 13, textAlign: "center" },
-  input: {
-    width: "100%",
-    backgroundColor: "#0F172A",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#334155",
-    color: "#F8FAFC",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 14,
+  loginTitle: {
+    color: TEXT,
+    fontSize: 22,
+    fontWeight: "800",
   },
-  error: { color: DANGER, fontSize: 13 },
-  primaryBtn: {
-    width: "100%",
-    backgroundColor: BRAND,
-    borderRadius: 10,
-    paddingVertical: 13,
+  loginSub: {
+    color: MUTED,
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  loginField: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+    alignSelf: "stretch",
+    backgroundColor: CARD_2,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingHorizontal: 14,
   },
-  primaryBtnText: { color: "#FFF", fontSize: 15, fontWeight: "700" },
+  loginInput: {
+    flex: 1,
+    paddingVertical: 12,
+    color: TEXT,
+    fontSize: 14,
+    ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+  },
+  error: {
+    color: DANGER,
+    fontSize: 13,
+    alignSelf: "flex-start",
+  },
+  primaryBtn: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: BRAND,
+    borderRadius: 12,
+    paddingVertical: 13,
+    marginTop: 4,
+  },
+  primaryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  // Top bar
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#1E293B",
+    borderBottomColor: BORDER,
   },
-  topTitle: { color: "#F8FAFC", fontSize: 18, fontWeight: "700" },
-  logoutBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  topLogo: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topTitle: {
+    color: TEXT,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  topSub: {
+    color: MUTED,
+    fontSize: 11,
+  },
+  logoutBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: `${DANGER}55`,
+    backgroundColor: `${DANGER}14`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Tabs
   tabBar: {
     flexDirection: "row",
-    paddingHorizontal: 10,
-    gap: 6,
-    paddingVertical: 8,
-    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   tabBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#1E293B",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
   },
-  tabBtnActive: { backgroundColor: BRAND },
-  tabText: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
-  tabTextActive: { color: "#FFF" },
+  tabBtnActive: {
+    backgroundColor: BRAND,
+    borderColor: BRAND,
+  },
+  tabText: {
+    color: MUTED,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+  tabTextActive: {
+    color: "#082F49",
+  },
+  // Layout
+  page: {
+    padding: 14,
+    gap: 12,
+    paddingBottom: 48,
+  },
+  panel: {
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+  },
+  panelTitle: {
+    color: TEXT,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  sectionNote: {
+    color: MUTED,
+    fontSize: 12.5,
+    lineHeight: 18,
+  },
+  emptyText: {
+    color: MUTED,
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 24,
+  },
+  // Hero + stats
+  hero: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 18,
+    padding: 18,
+  },
+  heroLabel: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  heroValue: {
+    color: "#FFFFFF",
+    fontSize: 40,
+    fontWeight: "800",
+    marginVertical: 2,
+  },
+  heroOnlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#4ADE80",
+  },
+  heroOnline: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
-    padding: 12,
-    paddingBottom: 40,
   },
   statCard: {
-    backgroundColor: "#1E293B",
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-    minWidth: 150,
+    width: "48%",
     flexGrow: 1,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    padding: 14,
+    gap: 6,
   },
-  statValue: { color: "#F8FAFC", fontSize: 24, fontWeight: "800" },
-  statLabel: { color: "#94A3B8", fontSize: 12 },
+  statIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statValue: {
+    color: TEXT,
+    fontSize: 22,
+    fontWeight: "800",
+  },
+  statLabel: {
+    color: MUTED,
+    fontSize: 12,
+  },
+  // Chart
+  chartRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    height: 140,
+    paddingTop: 6,
+  },
+  chartCol: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+    height: "100%",
+  },
+  chartCount: {
+    color: MUTED,
+    fontSize: 10.5,
+    fontWeight: "700",
+  },
+  chartBarTrack: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "flex-end",
+  },
+  chartBar: {
+    width: "100%",
+    borderRadius: 6,
+    backgroundColor: BRAND,
+    minHeight: 4,
+  },
+  chartDay: {
+    color: MUTED,
+    fontSize: 9.5,
+  },
+  // Cards / rows
+  card: {
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    padding: 12,
+    gap: 10,
+  },
+  userTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  avatarOnline: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: OK,
+    borderWidth: 2,
+    borderColor: CARD,
+  },
+  userNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  userName: {
+    color: TEXT,
+    fontSize: 14.5,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  userMeta: {
+    color: MUTED,
+    fontSize: 12,
+    marginTop: 1,
+  },
+  userActions: {
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    paddingTop: 10,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+  },
+  actionBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  coinRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  numInput: {
+    minWidth: 90,
+    backgroundColor: CARD_2,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    color: TEXT,
+    fontSize: 13,
+    ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+  },
+  // Search
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#1E293B",
-    borderRadius: 10,
-    marginHorizontal: 12,
+    marginHorizontal: 14,
     marginTop: 4,
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
   },
-  searchInput: { flex: 1, color: "#F8FAFC", fontSize: 14, paddingVertical: 2 },
-  userCard: { backgroundColor: "#1E293B", borderRadius: 12, padding: 14, gap: 8 },
-  userTop: { flexDirection: "row", alignItems: "center" },
-  userName: { color: "#F8FAFC", fontSize: 15, fontWeight: "700" },
-  userMeta: { color: "#94A3B8", fontSize: 12, marginTop: 2 },
-  userActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    alignItems: "center",
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    color: TEXT,
+    fontSize: 13.5,
+    ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
   },
-  actionBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  searchCount: {
+    color: MUTED,
+    fontSize: 11.5,
+    fontWeight: "700",
   },
-  actionBtnText: { color: "#FFF", fontSize: 12, fontWeight: "700" },
+  // Chips
   chip: {
     borderRadius: 6,
     borderWidth: 1,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
   },
-  coinRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  coinInput: {
-    backgroundColor: "#0F172A",
-    borderWidth: 1,
-    borderColor: "#334155",
-    borderRadius: 8,
-    color: "#F8FAFC",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+  chipText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.4,
+  },
+  // Rooms
+  roomIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Moments
+  momentText: {
+    color: "#C7D2E8",
     fontSize: 13,
-    minWidth: 90,
+    lineHeight: 19,
   },
-  settingField: { gap: 6 },
-  settingLabel: { color: "#CBD5E1", fontSize: 14, fontWeight: "600" },
+  momentFoot: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  // Market
+  marketEmoji: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: CARD_2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Broadcast
+  broadcastHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  fieldLabel: {
+    color: MUTED,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  bigInput: {
+    backgroundColor: CARD_2,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    color: TEXT,
+    fontSize: 14,
+    ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+  },
+  bigTextarea: {
+    minHeight: 110,
+    textAlignVertical: "top",
+  },
+  sentBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: `${OK}15`,
+    borderWidth: 1,
+    borderColor: `${OK}44`,
+    borderRadius: 10,
+    padding: 10,
+  },
+  sentText: {
+    color: OK,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  // Settings
+  settingField: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  settingLabel: {
+    color: TEXT,
+    fontSize: 13.5,
+    flex: 1,
+  },
 });

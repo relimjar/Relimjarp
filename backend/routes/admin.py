@@ -1,10 +1,11 @@
 import base64
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth_utils import get_current_user
 from config_utils import DEFAULTS, get_app_config
@@ -14,10 +15,12 @@ from db import (
     market_config_col,
     messages_col,
     moments_col,
+    notifications_col,
     rooms_col,
     users_col,
 )
 from routes.market import CATALOG
+from routes.push import send_push
 from ws_manager import manager
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -177,6 +180,120 @@ async def delete_user(user_id: str, admin: AdminUser):
     await users_col.delete_one({"_id": user_id})
     await moments_col.delete_many({"user_id": user_id})
     return {"ok": True}
+
+
+@router.get("/signups")
+async def signup_series(admin: AdminUser, days: int = 7):
+    """Daily signup counts for the last N days — powers the Overview chart."""
+    days = max(1, min(days, 30))
+    today = datetime.now(timezone.utc).date()
+    out = []
+    for i in range(days - 1, -1, -1):
+        day = today - timedelta(days=i)
+        next_day = day + timedelta(days=1)
+        count = await users_col.count_documents(
+            {"created_at": {"$gte": day.isoformat(), "$lt": next_day.isoformat()}}
+        )
+        out.append({"date": day.isoformat(), "count": count})
+    return out
+
+
+@router.get("/rooms")
+async def list_rooms(admin: AdminUser):
+    """All voice rooms, newest first — live ones on top."""
+    docs = (
+        await rooms_col.find({})
+        .sort([("is_live", -1), ("created_at", -1)])
+        .to_list(100)
+    )
+    host_ids = list({d["host_id"] for d in docs})
+    hosts = (
+        await users_col.find({"_id": {"$in": host_ids}}, {"name": 1, "email": 1}).to_list(
+            len(host_ids)
+        )
+        if host_ids
+        else []
+    )
+    host_map = {h["_id"]: h for h in hosts}
+    out = []
+    for d in docs:
+        h = host_map.get(d["host_id"])
+        out.append(
+            {
+                "id": d["_id"],
+                "title": d["title"],
+                "language": d.get("language"),
+                "topic": d.get("topic"),
+                "is_live": bool(d.get("is_live")),
+                "is_private": bool(d.get("is_private")),
+                "member_count": len(d.get("members", {})),
+                "host_name": h.get("name") if h else "Unknown",
+                "host_email": h.get("email") if h else None,
+                "created_at": d.get("created_at"),
+            }
+        )
+    return out
+
+
+@router.post("/rooms/{room_id}/end")
+async def force_end_room(room_id: str, admin: AdminUser):
+    """Force-close a live room (moderation)."""
+    res = await rooms_col.update_one({"_id": room_id}, {"$set": {"is_live": False}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return {"ok": True, "is_live": False}
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(room_id: str, admin: AdminUser):
+    """Delete a room record entirely."""
+    res = await rooms_col.delete_one({"_id": room_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return {"ok": True}
+
+
+class BroadcastBody(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
+    message: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/broadcast", status_code=201)
+async def broadcast(body: BroadcastBody, admin: AdminUser):
+    """Send an announcement to EVERY user: in-app notification + best-effort
+    push. Shows in each user's Notifications feed as an announcement."""
+    now = datetime.now(timezone.utc).isoformat()
+    user_ids = [d["_id"] async for d in users_col.find({}, {"_id": 1})]
+    if not user_ids:
+        return {"sent": 0}
+    docs = [
+        {
+            "_id": str(uuid.uuid4()),
+            "user_id": uid,
+            "actor_id": admin["_id"],
+            "type": "announcement",
+            "moment_id": None,
+            "text": f"{body.title} — {body.message}",
+            "read": False,
+            "created_at": now,
+        }
+        for uid in user_ids
+    ]
+    await notifications_col.insert_many(docs)
+    # Best-effort push in batches of 100 — never block the broadcast on it.
+    for i in range(0, len(user_ids), 100):
+        try:
+            await send_push(
+                user_ids[i : i + 100],
+                {
+                    "title": body.title,
+                    "message": body.message,
+                    "deeplink": "/notifications",
+                },
+            )
+        except Exception:
+            pass
+    return {"sent": len(user_ids)}
 
 
 @router.get("/moments")

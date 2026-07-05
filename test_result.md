@@ -574,6 +574,87 @@ agent_communication:
     - agent: "testing"
       message: "✅ PARTNER CARD TAGS FIX VERIFIED - ALL TESTS PASSED (8 cards, 0 failures). Tested on mobile viewport (390x844) with mei@demo.com. Scrolled through ALL partner cards: Didi, Bhh, Gigi, Didi, Demo User, Emma Wilson, Amélie Laurent, Yuki Tanaka. VERIFICATION RESULTS: (1) ✅ ALL tags on SINGLE horizontal row - measured y-coordinates for all cards with multiple tags show 0.00px difference (perfect alignment). Cards tested: Didi (2 tags, y-diff:0.00px), Bhh (2 tags, y-diff:0.00px), Demo User (2 tags, y-diff:0.00px), Yuki Tanaka (2 tags, y-diff:0.00px). (2) ✅ Long labels truncate with ellipsis - screenshots show 'Loves Fitne...', 'Language exchan...', 'Similar intere...' with proper truncation. (3) ✅ NO wrapping detected - 7 cards with tags all PASSED, 1 card with no tags. (4) ✅ No horizontal overflow outside cards. (5) ✅ No console errors - only minor font loading failures (non-critical) and 'props.pointerEvents is deprecated' warning (non-blocking). Screenshots captured at top/middle/bottom of list as evidence. FIX WORKING PERFECTLY. Ready for main agent to summarize and finish."
 
+## Test Run — Admin Console Redesign + New Admin Powers (Round 9)
+user_problem_statement: Admin dashboard looked bad - redesign with beautiful professional UI and add much more functionality (all functionality, more powerful).
+
+backend:
+  - task: "GET /api/admin/rooms + POST /api/admin/rooms/{id}/end + DELETE /api/admin/rooms/{id}"
+    implemented: true
+    working: true
+    file: "backend/routes/admin.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "List all rooms (live first) with host name/email, member_count, is_live, is_private. Force-end sets is_live=false. Delete removes room doc. Admin auth required (403 for non-admin)."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (6/6 tests passed): (1) GET /api/admin/rooms as admin returns 200 with array of rooms, found 4 rooms (3 live, 1 ended), live rooms sorted first ✅ (2) As non-admin (mei) returns 403 ✅ (3) Without auth returns 401 ✅ (4) Created room as mei, admin force-ended it via POST /api/admin/rooms/{id}/end, returns {ok:true, is_live:false}, verified room shows is_live=false in admin rooms list ✅ (5) Force-end unknown room returns 404 ✅ (6) DELETE /api/admin/rooms/{id} first delete returns 200 {ok:true}, second delete returns 404 ✅. All room management endpoints working correctly."
+  - task: "POST /api/admin/broadcast - announcement to all users (notifications + best-effort push)"
+    implemented: true
+    working: true
+    file: "backend/routes/admin.py, backend/routes/notifications.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Inserts type 'announcement' notification for EVERY user (actor=admin), returns {sent:n}. notifications.py ALL_TYPES now includes 'announcement' so it shows in users' feeds. Push in batches of 100 wrapped in try/except."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (4/4 tests passed): (1) POST /api/admin/broadcast as admin with {title:'Test Broadcast', message:'Hello everyone!'} returns 201 with {sent:20} (total user count) ✅ (2) As non-admin (mei) returns 403 ✅ (3) Missing title field returns 422 validation error ✅ (4) Logged in as mei, GET /api/notifications shows announcement notification with type='announcement', text contains 'Test Broadcast', actor name is 'Admin' ✅. Broadcast feature working correctly, notifications appear in users' feeds."
+  - task: "GET /api/admin/signups?days=7 - daily signup series"
+    implemented: true
+    working: true
+    file: "backend/routes/admin.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Returns [{date, count}] for last N days (1-30 clamp) based on created_at iso strings."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (2/2 tests passed): (1) GET /api/admin/signups?days=7 returns exactly 7 entries with {date, count} format, dates in ascending order, ending with today (2026-07-05 UTC) ✅ (2) GET /api/admin/signups?days=50 correctly clamps to 30 entries (max limit) ✅. Signup series endpoint working correctly."
+
+frontend:
+  - task: "Admin console redesign (dark professional UI, 8 tabs incl. Rooms + Broadcast, hero + signup chart)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/admin-x7k2p9.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Full rewrite - dark slate console (#0B1220), gradient login card with icon inputs, top bar with gradient logo + admin email + logout, scrollable icon tab pills (Overview/Users/Rooms/Moments/Market/Broadcast/Integrations/Settings), Overview hero gradient card (total users + online) + colored stat grid + 7-day signup bar chart, Users with avatars/online dot/badges/expandable action rows, Rooms with force-end/delete, Broadcast form, Moments/Market/Integrations/Settings restyled. All previous testIDs preserved. notifications.tsx got TYPE_META.announcement (megaphone)."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.13"
+  test_sequence: 12
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "GET /api/admin/rooms + POST /api/admin/rooms/{id}/end + DELETE /api/admin/rooms/{id}"
+    - "POST /api/admin/broadcast - announcement to all users"
+    - "GET /api/admin/signups?days=7 - daily signup series"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Implemented 3 new admin backend endpoints for Round 9 admin console redesign. Please test: (1) GET /api/admin/rooms - list all rooms (live first) with host details, member_count, is_live, is_private. Test as admin (200), non-admin (403), no auth (401). (2) POST /api/admin/rooms/{id}/end - force-end live room, sets is_live=false. Test with real room, unknown room (404). (3) DELETE /api/admin/rooms/{id} - delete room doc, test first delete (200), second delete (404). (4) GET /api/admin/signups?days=7 - returns [{date, count}] for last N days, test days=7 (7 entries), days=50 (clamps to 30). (5) POST /api/admin/broadcast - send announcement to all users with {title, message}, returns {sent:n}. Test as admin (201), non-admin (403), missing title (422), verify notification appears in mei's feed with type='announcement'. (6) Smoke tests: GET /api/admin/stats (10 fields), GET /api/admin/users (list), GET /api/admin/market (items), GET /api/admin/config (config). Use admin@lingua.app / Admin1234! and mei@demo.com / Demo1234!. Do NOT test frontend."
+    - agent: "testing"
+      message: "✅ ALL BACKEND TESTS PASSED (16/16). Admin console backend endpoints fully functional. Test summary: TEST 1 - GET /api/admin/rooms (3/3 passed): As admin returns 200 with array of 4 rooms (3 live, 1 ended), live rooms sorted first ✅ As non-admin returns 403 ✅ Without auth returns 401 ✅. TEST 2 - POST /api/admin/rooms/{id}/end (2/2 passed): Created room as mei, admin force-ended it, returns {ok:true, is_live:false}, verified in admin rooms list ✅ Unknown room returns 404 ✅. TEST 3 - DELETE /api/admin/rooms/{id} (1/1 passed): First delete returns 200 {ok:true}, second delete returns 404 ✅. TEST 4 - GET /api/admin/signups (2/2 passed): days=7 returns exactly 7 entries with {date, count}, dates ascending, ending today (2026-07-05 UTC) ✅ days=50 clamps to 30 entries ✅. TEST 5 - POST /api/admin/broadcast (4/4 passed): As admin returns 201 with {sent:20} ✅ As non-admin returns 403 ✅ Missing title returns 422 ✅ Notification appears in mei's feed with type='announcement', text contains 'Test Broadcast', actor name is 'Admin' ✅. TEST 6 - Smoke tests (4/4 passed): GET /api/admin/stats returns all 10 fields ✅ GET /api/admin/users returns list of 20 users ✅ GET /api/admin/market returns 13 items ✅ GET /api/admin/config returns config with 5 keys ✅. No critical issues found. All admin endpoints working correctly. Ready for main agent to summarize and finish."
+
 ## Test Run — User Feedback Round 8 (top gifters ranked in room header)
 user_problem_statement: In the voice room, when people send gifts, show the gifters' list next to the three-dot menu (top-right). Rank them 1, 2, 3 by total gift amount.
 

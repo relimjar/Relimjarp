@@ -28,6 +28,11 @@ const TYPE_META: Record<
   reply: { icon: "return-down-forward", color: "#8B5CF6", label: "replied to your comment" },
   follow: { icon: "person-add", color: "#22C55E", label: "started following you" },
   visit: { icon: "eye", color: "#F59E0B", label: "viewed your profile" },
+  announcement: {
+    icon: "megaphone",
+    color: "#8B5CF6",
+    label: "sent an announcement",
+  },
 };
 
 export default function Notifications() {
