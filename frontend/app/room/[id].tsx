@@ -523,13 +523,43 @@ export default function RoomScreen() {
               </Text>
             </View>
           </View>
-          <Pressable
-            testID="room-menu-btn"
-            style={styles.menuBtn}
-            onPress={() => setMenuOpen(true)}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
-          </Pressable>
+          <View style={styles.headerRight}>
+            {(room.top_gifters || []).length > 0 && (
+              <View style={styles.gifterRow} testID="room-top-gifters">
+                {(room.top_gifters || []).map((g, i) => (
+                  <View
+                    key={g.id}
+                    style={[
+                      styles.gifterWrap,
+                      { marginLeft: i === 0 ? 0 : -8, zIndex: 3 - i },
+                    ]}
+                    testID={`room-gifter-rank-${i + 1}`}
+                  >
+                    <Avatar name={g.name} url={g.avatar_url} size={28} />
+                    <View
+                      style={[
+                        styles.gifterRankBadge,
+                        i === 0
+                          ? styles.rankGold
+                          : i === 1
+                            ? styles.rankSilver
+                            : styles.rankBronze,
+                      ]}
+                    >
+                      <Text style={styles.gifterRankText}>{i + 1}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            <Pressable
+              testID="room-menu-btn"
+              style={styles.menuBtn}
+              onPress={() => setMenuOpen(true)}
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
+            </Pressable>
+          </View>
         </View>
 
         {isHost && handRequests.length > 0 && (
@@ -1193,6 +1223,44 @@ const makeStyles = () =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "rgba(255,255,255,0.12)",
+    },
+    headerRight: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    gifterRow: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    gifterWrap: {
+      position: "relative",
+    },
+    gifterRankBadge: {
+      position: "absolute",
+      bottom: -3,
+      right: -2,
+      width: 14,
+      height: 14,
+      borderRadius: 7,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "rgba(0,0,0,0.35)",
+    },
+    rankGold: {
+      backgroundColor: "#F59E0B",
+    },
+    rankSilver: {
+      backgroundColor: "#94A3B8",
+    },
+    rankBronze: {
+      backgroundColor: "#B45309",
+    },
+    gifterRankText: {
+      fontFamily: fonts.textBold,
+      fontSize: 8.5,
+      color: "#FFFFFF",
     },
     stageScroll: {
       maxHeight: "42%",

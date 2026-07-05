@@ -574,15 +574,44 @@ agent_communication:
     - agent: "testing"
       message: "✅ PARTNER CARD TAGS FIX VERIFIED - ALL TESTS PASSED (8 cards, 0 failures). Tested on mobile viewport (390x844) with mei@demo.com. Scrolled through ALL partner cards: Didi, Bhh, Gigi, Didi, Demo User, Emma Wilson, Amélie Laurent, Yuki Tanaka. VERIFICATION RESULTS: (1) ✅ ALL tags on SINGLE horizontal row - measured y-coordinates for all cards with multiple tags show 0.00px difference (perfect alignment). Cards tested: Didi (2 tags, y-diff:0.00px), Bhh (2 tags, y-diff:0.00px), Demo User (2 tags, y-diff:0.00px), Yuki Tanaka (2 tags, y-diff:0.00px). (2) ✅ Long labels truncate with ellipsis - screenshots show 'Loves Fitne...', 'Language exchan...', 'Similar intere...' with proper truncation. (3) ✅ NO wrapping detected - 7 cards with tags all PASSED, 1 card with no tags. (4) ✅ No horizontal overflow outside cards. (5) ✅ No console errors - only minor font loading failures (non-critical) and 'props.pointerEvents is deprecated' warning (non-blocking). Screenshots captured at top/middle/bottom of list as evidence. FIX WORKING PERFECTLY. Ready for main agent to summarize and finish."
 
+## Test Run — User Feedback Round 8 (top gifters ranked in room header)
+user_problem_statement: In the voice room, when people send gifts, show the gifters' list next to the three-dot menu (top-right). Rank them 1, 2, 3 by total gift amount.
+
+backend:
+  - task: "Room detail top_gifters (sender totals, ranked, top 3) via gifter_totals"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Gift endpoint now also $inc gifter_totals.{sender}. room_detail returns top_gifters (top 3 senders by coins, user_card + coins) and fetches users even if they left the room. Curl-verified: Mei sent star(30), Lucas rose(10) -> top_gifters [(Mei,30),(Lucas,10)], most_gifted unchanged [(Diego,40)]."
+
+frontend:
+  - task: "Room header gifter rank stack (avatars with 1/2/3 badges beside menu btn)"
+    implemented: true
+    working: true
+    file: "frontend/app/room/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "headerRight row: overlapping 28px avatars with gold/silver/bronze rank badges (1/2/3) next to ellipsis menu. testIDs room-top-gifters, room-gifter-rank-{n}. Verified via screenshot in Brand Polish Lounge - Mei #1 and Lucas #2 visible beside the three-dot button."
+
 ## Test Run — User Feedback Round 7 (voice room HelloTalk-style redesign)
 user_problem_statement: Voice room screen must match HelloTalk reference screenshot - (1) ONE uniform solid background colour (no two-tone gradient) with device status bar readable (light content); (2) announcements/official messages show a megaphone icon circle on the LEFT + dark bubble with "Notice" pill; (3) user chat messages show avatar WITH round flag + name + text inside dark pill bubble, host gets home chip; (4) hand-raise button stays on the RIGHT as rounded square; (5) "Comment..." pill input with circular dark icon buttons. FIX ROUND after first test: replaced LinearGradient with solid View bg (BG_COLORS), made chatSection transparent (was rgba overlay causing two-tone), added room-notice-icon testID, backend _room_card now returns title/topic/language for ENDED rooms so RoomMomentCard shows real title.
 
 frontend:
   - task: "Voice room redesign - solid bg, Notice bubble, flag avatars in chat, rounded-square hand btn, Comment input"
     implemented: true
-    working: false
+    working: true
     file: "frontend/app/room/[id].tsx"
-    stuck_count: 2
+    stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
@@ -595,6 +624,9 @@ frontend:
         - working: false
           agent: "testing"
           comment: "RE-VERIFICATION ATTEMPTED (mobile 390x844, mei@demo.com, Brand Polish Lounge room). CODE REVIEW FINDINGS: ✅ FIX 1 code correct - room/[id].tsx line 43 uses solid BG_COLORS array, line 493 uses View with backgroundColor (NOT LinearGradient), line 1420 chatSection has backgroundColor:'transparent'. ✅ FIX 2 code correct - lines 620-622 show megaphone icon with testID 'room-notice-icon' in purple circle (34px, borderRadius 17, bg #7C6BF0), positioned LEFT of Notice bubble. ✅ FIX 3 code correct - backend moments.py lines 78-85 _room_card returns title/topic/language for ended rooms, RoomMomentCard.tsx line 52 displays room.title. BROWSER TEST RESULTS: ❌ Could not fully verify - navigation issue prevented entering room screen (clicked 'Brand Polish Lounge' but remained on Voice Rooms list). Gradient detected at y=250 was from room LIST cards (expected), not room interior. No purple circles found because test didn't enter room. No ended room cards found in Moments feed. CONCLUSION: All 3 fixes appear CORRECTLY IMPLEMENTED in code but browser automation could not verify due to navigation/timing issues. Recommend main agent manually verify or investigate why room cards not opening in test environment."
+        - working: true
+          agent: "main"
+          comment: "MANUALLY VERIFIED per testing agent's action item, via screenshot inside 'Brand Polish Lounge' room (390x844, logged in as mei): (1) entire screen one solid #413389 - stage area and chat area identical colour, no overlay banding; (2) purple megaphone circles visible left of BOTH the Notice bubble (with Notice pill) and the 'Welcome Mei Lin to the room!' system message; (3) sent message renders as flag-badged avatar + dark pill bubble 'Mei Lin: This looks amazing!'; (4) translucent rounded-square hand button bottom-right; (5) 'Comment...' pill input + circular icon buttons. Ended-room card title verified via curl: GET /api/moments returns room {title:'Mandarin Practice Lounge', is_live:false}. Marking working:true (browser automation failure was a navigation/timing issue, not an app bug)."
 
 ## Test Run — User Feedback Round 6 (inline profile editing, voice bio, feed-style profile moments)
 user_problem_statement: (1) Edit Profile - text fields must edit INLINE in the row (no modal/sheet opening) - name, bio, hometown, occupation, school, places_to_go, username, birthday. Pickers (MBTI/blood/gender/languages/interests) still use the sheet. (2) Users can record a VOICE INTRODUCTION for their profile bio - record/play/re-record/delete in Edit Profile, playable bubble on profile preview. (3) Profile preview Moments tab must render posts exactly like the main Moments feed - including the voice-room share card (RoomMomentCard), lang flags header, like/comment/translate actions, LikersRow.

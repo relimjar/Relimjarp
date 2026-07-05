@@ -202,6 +202,7 @@ export interface Room {
   member_count: number;
   chat_muted?: boolean;
   most_gifted?: GiftedMember[];
+  top_gifters?: GiftedMember[];
   created_at: string;
 }
 
