@@ -41,14 +41,31 @@ export default function AuthScreen() {
 
   const isLogin = mode === "login";
 
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
+  const passwordValid = password.length >= 6;
+  const nameValid = isLogin || name.trim().length >= 1;
+  const formValid = emailValid && passwordValid && nameValid;
+
   const submit = async () => {
     setError(null);
-    if (!email.trim() || !password) {
-      setError("Please fill in all fields");
+    if (!email.trim()) {
+      setError("Please enter your email.");
+      return;
+    }
+    if (!emailValid) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+    if (!isLogin && !passwordValid) {
+      setError("Password must be at least 6 characters.");
       return;
     }
     if (!isLogin && !name.trim()) {
-      setError("Please enter your name");
+      setError("Please enter your name.");
       return;
     }
     setBusy(true);
@@ -60,7 +77,19 @@ export default function AuthScreen() {
       }
       router.replace("/");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
+      const raw = e instanceof Error ? e.message : "Something went wrong";
+      // Turn common backend errors into friendly messages.
+      let msg = raw;
+      if (/incorrect email or password/i.test(raw)) {
+        msg = "Wrong email or password. Please try again.";
+      } else if (/email already registered/i.test(raw)) {
+        msg = "This email is already registered. Try logging in instead.";
+      } else if (/banned/i.test(raw)) {
+        msg = "This account has been suspended.";
+      } else if (/network|failed to fetch/i.test(raw)) {
+        msg = "Can't reach the server. Check your connection.";
+      }
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -201,6 +230,20 @@ export default function AuthScreen() {
                   />
                 </Pressable>
               </View>
+              {!isLogin && (
+                <Text
+                  style={[
+                    styles.hint,
+                    password.length > 0 && !passwordValid && { color: colors.error },
+                  ]}
+                >
+                  {password.length === 0
+                    ? "Use at least 6 characters."
+                    : passwordValid
+                    ? "✓ Looks good!"
+                    : `${password.length}/6 characters`}
+                </Text>
+              )}
             </View>
 
             {error && (
@@ -216,10 +259,11 @@ export default function AuthScreen() {
               testID="auth-submit-btn"
               style={({ pressed }) => [
                 styles.submitWrap,
-                (pressed || busy) && { opacity: 0.8 },
+                (pressed || busy) && { opacity: 0.85 },
+                !formValid && !busy && { opacity: 0.5 },
               ]}
               onPress={submit}
-              disabled={busy}
+              disabled={busy || !formValid}
             >
               <LinearGradient
                 colors={["#0EA5E9", "#38BDF8"]}
@@ -368,6 +412,13 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 15,
       color: colors.onSurface,
       ...Platform.select({ web: { outlineStyle: "none" } as object, default: {} }),
+    },
+    hint: {
+      marginTop: 6,
+      marginLeft: 4,
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
     },
     errorRow: {
       flexDirection: "row",

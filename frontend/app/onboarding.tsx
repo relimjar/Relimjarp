@@ -9,12 +9,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { DateOfBirthPicker, DateOfBirthValue, computeAgeFromDob, dobToIso } from "@/src/components/DateOfBirthPicker";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { COUNTRIES, countryFlagUrl } from "@/src/constants/countries";
 import { INTERESTS, MAX_INTERESTS } from "@/src/constants/interests";
@@ -31,7 +31,7 @@ export default function Onboarding() {
   const [nativeLang, setNativeLang] = useState<string | null>(null);
   const [learnLangs, setLearnLangs] = useState<string[]>([]);
   const [country, setCountry] = useState<string | null>(null);
-  const [age, setAge] = useState("");
+  const [dob, setDob] = useState<DateOfBirthValue>({ year: null, month: null, day: null });
   const [gender, setGender] = useState<"male" | "female" | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -55,12 +55,8 @@ export default function Onboarding() {
       subtitle: "Your country flag appears on your profile. This can't be changed later.",
     },
     {
-      title: "How old are you?",
-      subtitle: "Shown on your profile. This can't be changed later.",
-    },
-    {
-      title: "You are?",
-      subtitle: "Shown next to your name. This can't be changed later.",
+      title: "A little about you",
+      subtitle: "Your date of birth and gender appear on your profile. These can't be changed later.",
     },
     {
       title: "What do you love?",
@@ -69,16 +65,15 @@ export default function Onboarding() {
   ];
   const lastStep = steps.length - 1;
 
-  const ageNum = parseInt(age, 10);
-  const ageValid = !Number.isNaN(ageNum) && ageNum >= 13 && ageNum <= 120;
+  const ageComputed = computeAgeFromDob(dob);
+  const ageValid = ageComputed != null && ageComputed >= 13 && ageComputed <= 120;
 
   const canContinue =
     (step === 0 && !!nativeLang) ||
     (step === 1 && learnLangs.length > 0) ||
     (step === 2 && !!country) ||
-    (step === 3 && ageValid) ||
-    (step === 4 && !!gender) ||
-    (step === 5 && interests.length > 0);
+    (step === 3 && ageValid && !!gender) ||
+    (step === 4 && interests.length > 0);
 
   const toggleIn = (
     list: string[],
@@ -106,7 +101,7 @@ export default function Onboarding() {
         learning_languages: learnLangs,
         learning_language: learnLangs[0],
         country: COUNTRIES.find((c) => c.code === country)?.name,
-        age: ageNum,
+        birthday: dobToIso(dob),
         gender,
         interests,
       });
@@ -207,49 +202,65 @@ export default function Onboarding() {
             </View>
           )}
           {step === 3 && (
-            <View style={styles.ageBox}>
-              <TextInput
-                testID="onboarding-age-input"
-                style={styles.ageInput}
-                value={age}
-                onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ""))}
-                placeholder="18"
-                placeholderTextColor={colors.onSurfaceSecondary}
-                keyboardType="number-pad"
-                maxLength={3}
+            <View style={styles.aboutBox}>
+              <Text style={styles.sectionLabel}>Date of birth</Text>
+              <DateOfBirthPicker
+                testID="onboarding-dob-picker"
+                value={dob}
+                onChange={setDob}
               />
-              <Text style={styles.ageHint}>
-                {age && !ageValid ? "Enter an age between 13 and 120" : "years old"}
+              {dob.year && dob.month && dob.day && (
+                <View style={styles.ageDisplay}>
+                  {ageValid ? (
+                    <>
+                      <Ionicons name="cake" size={16} color={colors.brand} />
+                      <Text style={styles.ageDisplayText}>
+                        You are {ageComputed} years old
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="alert-circle" size={16} color={colors.error} />
+                      <Text style={[styles.ageDisplayText, { color: colors.error }]}>
+                        Must be between 13 and 120 years old
+                      </Text>
+                    </>
+                  )}
+                </View>
+              )}
+
+              <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>
+                Gender
               </Text>
+              <View style={styles.genderRow}>
+                {(["male", "female"] as const).map((g) => {
+                  const active = gender === g;
+                  return (
+                    <Pressable
+                      key={g}
+                      testID={`onboarding-gender-${g}`}
+                      onPress={() => setGender(g)}
+                      style={[styles.genderCard, active && styles.genderCardActive]}
+                    >
+                      <View style={styles.genderIconWrap}>
+                        <Ionicons
+                          name={g}
+                          size={30}
+                          color={g === "male" ? "#3B82F6" : "#EC4899"}
+                        />
+                      </View>
+                      <Text
+                        style={[styles.langName, active && styles.langNameActive]}
+                      >
+                        {g === "male" ? "Male" : "Female"}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
           )}
           {step === 4 && (
-            <View style={styles.genderRow}>
-              {(["male", "female"] as const).map((g) => {
-                const active = gender === g;
-                return (
-                  <Pressable
-                    key={g}
-                    testID={`onboarding-gender-${g}`}
-                    onPress={() => setGender(g)}
-                    style={[styles.genderCard, active && styles.langChipActive]}
-                  >
-                    <Ionicons
-                      name={g}
-                      size={44}
-                      color={g === "male" ? "#3B82F6" : "#EC4899"}
-                    />
-                    <Text
-                      style={[styles.langName, active && styles.langNameActive]}
-                    >
-                      {g === "male" ? "Male" : "Female"}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          )}
-          {step === 5 && (
             <>
               <Text style={styles.counter}>
                 {interests.length}/{MAX_INTERESTS} selected
@@ -388,20 +399,58 @@ const makeStyles = (colors: ThemeColors) =>
       gap: spacing.md,
       paddingVertical: spacing.xl,
     },
+    aboutBox: {
+      paddingVertical: spacing.md,
+    },
+    sectionLabel: {
+      fontFamily: fonts.textBold,
+      fontSize: 13,
+      color: colors.onSurfaceTertiary,
+      marginBottom: spacing.md,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+    },
+    ageDisplay: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      backgroundColor: colors.brandTertiary,
+      borderRadius: radius.md,
+      alignSelf: "flex-start",
+    },
+    ageDisplayText: {
+      fontFamily: fonts.textBold,
+      fontSize: 14,
+      color: colors.onBrandTertiary,
+    },
     genderRow: {
       flexDirection: "row",
-      gap: spacing.lg,
-      paddingVertical: spacing.xl,
+      gap: spacing.md,
     },
     genderCard: {
       flex: 1,
       alignItems: "center",
-      gap: spacing.md,
-      paddingVertical: spacing.xxl,
+      gap: spacing.sm,
+      paddingVertical: spacing.lg,
       borderRadius: radius.md,
       backgroundColor: colors.surfaceSecondary,
       borderWidth: 2,
       borderColor: "transparent",
+    },
+    genderCardActive: {
+      backgroundColor: colors.brandTertiary,
+      borderColor: colors.brand,
+    },
+    genderIconWrap: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
     },
     ageInput: {
       width: 140,

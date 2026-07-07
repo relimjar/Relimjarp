@@ -1,571 +1,386 @@
 #!/usr/bin/env python3
 """
-Backend test for Round 12: Chat message reactions + room-share messages
-Tests two new features:
-  A) POST /api/chats/{cid}/messages/{mid}/react - toggle emoji reactions
-  B) POST /api/chats/{cid}/messages accepts room_id (room-share card message)
+Backend API test for Round 13: Birthday → Derived Age Feature
+Tests PUT /api/users/me with birthday field that derives age automatically.
 """
 
 import requests
-import sys
+import json
+from datetime import datetime
 
 # Backend URL - using localhost since we're testing from inside the container
 BASE_URL = "http://localhost:8001/api"
 
-# Test credentials from /app/memory/test_credentials.md
-MEI_EMAIL = "mei@demo.com"
-MEI_PASSWORD = "Demo1234!"
-DIEGO_EMAIL = "diego@demo.com"
-DIEGO_PASSWORD = "Demo1234!"
-
-
-def login(email: str, password: str) -> tuple[str, str]:
-    """Login and return (token, user_id)"""
-    resp = requests.post(
-        f"{BASE_URL}/auth/login",
-        json={"email": email, "password": password},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Login failed for {email}: {resp.status_code} {resp.text}")
-        sys.exit(1)
+def register_user(email, password="Password123!", name="DOB Tester"):
+    """Register a fresh user and return token + user data."""
+    url = f"{BASE_URL}/auth/register"
+    payload = {
+        "email": email,
+        "password": password,
+        "name": name
+    }
+    resp = requests.post(url, json=payload)
+    if resp.status_code != 201:
+        print(f"❌ Registration failed for {email}: {resp.status_code} {resp.text}")
+        return None, None
     data = resp.json()
-    return data["token"], data["user"]["id"]
+    return data.get("token"), data.get("user")
 
+def update_profile(token, updates):
+    """PUT /api/users/me with given updates."""
+    url = f"{BASE_URL}/users/me"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.put(url, json=updates, headers=headers)
+    return resp
 
-def test_feature_a_reactions():
-    """
-    Test A: POST /api/chats/{cid}/messages/{mid}/react - toggle emoji reaction
-    
-    Steps:
-    1. Login mei. Ensure conversation exists with diego.
-    2. Mei sends text message, grab msg_id.
-    3. Mei reacts with ❤️ → verify reactions == [{emoji:"❤️", count:1, user_ids:[mei_id]}]
-    4. Mei reacts with ❤️ again → reactions cleared (empty array)
-    5. Mei reacts with 😂 → replaces. reactions == [{emoji:"😂", count:1, user_ids:[mei_id]}]
-    6. Diego also reacts 😂 on same msg → reactions == [{emoji:"😂", count:2, user_ids has both}]
-    7. Diego reacts with 🔥 → now reactions has 2 entries
-    8. GET /api/chats/{cid}/messages - message shows same aggregated reactions
-    9. Unauth (no token) call → 401
-    10. Unknown message id → 404 "Message not found"
-    """
+def get_me(token):
+    """GET /api/auth/me to verify current user state."""
+    url = f"{BASE_URL}/auth/me"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    return resp
+
+def test_scenario_1_happy_path():
+    """Test 1: Happy path — birthday derives age"""
     print("\n" + "="*80)
-    print("TEST A: POST /api/chats/{cid}/messages/{mid}/react - emoji reactions")
+    print("TEST 1: Happy path — birthday derives age")
     print("="*80)
     
-    # Step 1: Login mei and diego
-    print("\n[Step 1] Login mei and diego...")
-    mei_token, mei_id = login(MEI_EMAIL, MEI_PASSWORD)
-    diego_token, diego_id = login(DIEGO_EMAIL, DIEGO_PASSWORD)
-    print(f"✅ Mei logged in: {mei_id}")
-    print(f"✅ Diego logged in: {diego_id}")
-    
-    # Ensure conversation exists (idempotent)
-    print(f"\n[Step 1b] Ensure conversation exists between mei and diego...")
-    resp = requests.post(
-        f"{BASE_URL}/chats",
-        json={"partner_id": diego_id},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code not in [200, 201]:
-        print(f"❌ Failed to create/get conversation: {resp.status_code} {resp.text}")
+    # Register fresh user
+    email = f"dob_test_happy_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 1 FAILED: Could not register user")
         return False
-    conv_id = resp.json()["id"]
-    print(f"✅ Conversation ID: {conv_id}")
+    print(f"✅ Registered user: {email}")
     
-    # Step 2: Mei sends text message
-    print(f"\n[Step 2] Mei sends text message...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        json={"text": "Hi"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 201:
-        print(f"❌ Failed to send message: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    msg_id = msg["id"]
-    print(f"✅ Message sent: {msg_id}")
-    print(f"   Initial reactions: {msg.get('reactions', [])}")
+    # Update with birthday and other fields
+    updates = {
+        "native_language": "en",
+        "learning_language": "es",
+        "country": "United States",
+        "birthday": "2000-05-15",
+        "gender": "male",
+        "interests": ["Coffee"]
+    }
+    resp = update_profile(token, updates)
     
-    # Step 3: Mei reacts with ❤️
-    print(f"\n[Step 3] Mei reacts with ❤️...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "❤️"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
     if resp.status_code != 200:
-        print(f"❌ Failed to react: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    reactions = msg.get("reactions", [])
-    print(f"✅ Reaction added. Reactions: {reactions}")
-    
-    # Verify: reactions == [{emoji:"❤️", count:1, user_ids:[mei_id]}]
-    if len(reactions) != 1:
-        print(f"❌ Expected 1 reaction, got {len(reactions)}")
-        return False
-    if reactions[0]["emoji"] != "❤️":
-        print(f"❌ Expected emoji ❤️, got {reactions[0]['emoji']}")
-        return False
-    if reactions[0]["count"] != 1:
-        print(f"❌ Expected count 1, got {reactions[0]['count']}")
-        return False
-    if mei_id not in reactions[0]["user_ids"]:
-        print(f"❌ Expected mei_id in user_ids, got {reactions[0]['user_ids']}")
-        return False
-    print(f"✅ VERIFY: reactions == [{{emoji:'❤️', count:1, user_ids:[{mei_id}]}}]")
-    
-    # Step 4: Mei reacts with ❤️ again → reactions cleared
-    print(f"\n[Step 4] Mei reacts with ❤️ again (toggle off)...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "❤️"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to react: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    reactions = msg.get("reactions", [])
-    print(f"✅ Reaction toggled off. Reactions: {reactions}")
-    
-    if len(reactions) != 0:
-        print(f"❌ Expected empty reactions, got {reactions}")
-        return False
-    print(f"✅ VERIFY: reactions cleared (empty array)")
-    
-    # Step 5: Mei reacts with 😂 → replaces
-    print(f"\n[Step 5] Mei reacts with 😂...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "😂"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to react: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    reactions = msg.get("reactions", [])
-    print(f"✅ Reaction replaced. Reactions: {reactions}")
-    
-    if len(reactions) != 1:
-        print(f"❌ Expected 1 reaction, got {len(reactions)}")
-        return False
-    if reactions[0]["emoji"] != "😂":
-        print(f"❌ Expected emoji 😂, got {reactions[0]['emoji']}")
-        return False
-    if reactions[0]["count"] != 1:
-        print(f"❌ Expected count 1, got {reactions[0]['count']}")
-        return False
-    print(f"✅ VERIFY: reactions == [{{emoji:'😂', count:1, user_ids:[{mei_id}]}}]")
-    
-    # Step 6: Diego also reacts 😂 on same msg
-    print(f"\n[Step 6] Diego also reacts 😂 on same message...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "😂"},
-        headers={"Authorization": f"Bearer {diego_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to react: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    reactions = msg.get("reactions", [])
-    print(f"✅ Diego reacted. Reactions: {reactions}")
-    
-    if len(reactions) != 1:
-        print(f"❌ Expected 1 reaction group, got {len(reactions)}")
-        return False
-    if reactions[0]["emoji"] != "😂":
-        print(f"❌ Expected emoji 😂, got {reactions[0]['emoji']}")
-        return False
-    if reactions[0]["count"] != 2:
-        print(f"❌ Expected count 2, got {reactions[0]['count']}")
-        return False
-    if mei_id not in reactions[0]["user_ids"] or diego_id not in reactions[0]["user_ids"]:
-        print(f"❌ Expected both mei and diego in user_ids, got {reactions[0]['user_ids']}")
-        return False
-    print(f"✅ VERIFY: reactions == [{{emoji:'😂', count:2, user_ids:[{mei_id}, {diego_id}]}}]")
-    
-    # Step 7: Diego reacts with 🔥 → now reactions has 2 entries
-    print(f"\n[Step 7] Diego reacts with 🔥 (replaces his 😂)...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "🔥"},
-        headers={"Authorization": f"Bearer {diego_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to react: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    reactions = msg.get("reactions", [])
-    print(f"✅ Diego changed reaction. Reactions: {reactions}")
-    
-    if len(reactions) != 2:
-        print(f"❌ Expected 2 reaction groups, got {len(reactions)}")
+        print(f"❌ TEST 1 FAILED: PUT /api/users/me returned {resp.status_code}")
+        print(f"   Response: {resp.text}")
         return False
     
-    # Find 😂 and 🔥 reactions
-    laugh_reaction = next((r for r in reactions if r["emoji"] == "😂"), None)
-    fire_reaction = next((r for r in reactions if r["emoji"] == "🔥"), None)
+    data = resp.json()
+    print(f"✅ PUT /api/users/me returned 200")
     
-    if not laugh_reaction:
-        print(f"❌ Expected 😂 reaction, not found in {reactions}")
-        return False
-    if laugh_reaction["count"] != 1 or mei_id not in laugh_reaction["user_ids"]:
-        print(f"❌ Expected 😂 with count:1 and mei_id, got {laugh_reaction}")
-        return False
+    # Verify age is derived correctly (should be 26 since today is 2026-07-07 and birthday is 2000-05-15)
+    age = data.get("age")
+    birthday = data.get("birthday")
+    gender = data.get("gender")
+    country = data.get("country")
     
-    if not fire_reaction:
-        print(f"❌ Expected 🔥 reaction, not found in {reactions}")
-        return False
-    if fire_reaction["count"] != 1 or diego_id not in fire_reaction["user_ids"]:
-        print(f"❌ Expected 🔥 with count:1 and diego_id, got {fire_reaction}")
-        return False
+    print(f"   Response age: {age}")
+    print(f"   Response birthday: {birthday}")
+    print(f"   Response gender: {gender}")
+    print(f"   Response country: {country}")
     
-    print(f"✅ VERIFY: reactions has 2 entries - 😂 (mei) and 🔥 (diego)")
-    
-    # Step 8: GET /api/chats/{cid}/messages - verify same reactions
-    print(f"\n[Step 8] GET /api/chats/{conv_id}/messages - verify reactions persist...")
-    resp = requests.get(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to get messages: {resp.status_code} {resp.text}")
-        return False
-    messages = resp.json()
-    target_msg = next((m for m in messages if m["id"] == msg_id), None)
-    if not target_msg:
-        print(f"❌ Message {msg_id} not found in messages list")
+    # Age should be 26 (2026 - 2000 = 26, and we're past May 15)
+    if not isinstance(age, int):
+        print(f"❌ TEST 1 FAILED: age is not an integer, got {type(age)}")
         return False
     
-    reactions = target_msg.get("reactions", [])
-    print(f"✅ Message found in list. Reactions: {reactions}")
-    
-    if len(reactions) != 2:
-        print(f"❌ Expected 2 reaction groups, got {len(reactions)}")
+    if age < 25 or age > 26:
+        print(f"❌ TEST 1 FAILED: age should be 25 or 26, got {age}")
         return False
-    print(f"✅ VERIFY: GET messages shows same aggregated reactions")
     
-    # Step 9: Unauth (no token) call → 401
-    print(f"\n[Step 9] Test unauthorized call (no token) → 401...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{msg_id}/react",
-        json={"emoji": "👍"},
-        timeout=10,
-    )
-    if resp.status_code != 401:
-        print(f"❌ Expected 401, got {resp.status_code}")
+    if birthday != "2000-05-15":
+        print(f"❌ TEST 1 FAILED: birthday should be '2000-05-15', got {birthday}")
         return False
-    print(f"✅ VERIFY: Unauthorized call returns 401")
     
-    # Step 10: Unknown message id → 404
-    print(f"\n[Step 10] Test unknown message id → 404...")
-    fake_msg_id = "00000000-0000-0000-0000-000000000000"
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages/{fake_msg_id}/react",
-        json={"emoji": "👍"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 404:
-        print(f"❌ Expected 404, got {resp.status_code}")
+    if gender != "male":
+        print(f"❌ TEST 1 FAILED: gender should be 'male', got {gender}")
         return False
-    if "not found" not in resp.text.lower():
-        print(f"❌ Expected 'not found' in error message, got: {resp.text}")
-        return False
-    print(f"✅ VERIFY: Unknown message id returns 404 'Message not found'")
     
-    print(f"\n{'='*80}")
-    print(f"✅ TEST A PASSED: All 10 steps verified successfully")
-    print(f"{'='*80}")
+    if country != "United States":
+        print(f"❌ TEST 1 FAILED: country should be 'United States', got {country}")
+        return False
+    
+    print(f"✅ TEST 1 PASSED: age={age}, birthday={birthday}, gender={gender}, country={country}")
     return True
 
-
-def test_feature_b_room_share():
-    """
-    Test B: POST /api/chats/{cid}/messages accepts room_id (room-share card message)
-    
-    Steps:
-    1. Login mei. Create voice room.
-    2. Send room card message: POST /api/chats/{cid}/messages {room_id}
-    3. Verify response: type=="room", room_id==room_id, text starts with "🎙️",
-       room field contains: id, title, is_live=true, member_count>=1, language, host
-    4. GET /api/chats/{cid}/messages - same message with same room field
-    5. Verify last_message on conversation reflects preview text
-    6. Sending with unknown room_id → 404 "Voice room not found"
-    7. Backward compat: POST {text:"Just text"} still returns type="text"
-    8. Empty text without room_id → 400
-    """
+def test_scenario_2_invalid_format():
+    """Test 2: Invalid birthday format"""
     print("\n" + "="*80)
-    print("TEST B: POST /api/chats/{cid}/messages with room_id (room-share card)")
+    print("TEST 2: Invalid birthday format")
     print("="*80)
     
-    # Step 1: Login mei and create voice room
-    print("\n[Step 1] Login mei and create voice room...")
-    mei_token, mei_id = login(MEI_EMAIL, MEI_PASSWORD)
-    diego_token, diego_id = login(DIEGO_EMAIL, DIEGO_PASSWORD)
-    print(f"✅ Mei logged in: {mei_id}")
+    test_cases = [
+        ("2000/05/15", "slash format"),
+        ("15-05-2000", "DD-MM-YYYY format"),
+        ("invalid", "invalid string")
+    ]
     
-    resp = requests.post(
-        f"{BASE_URL}/rooms",
-        json={
-            "title": "Chat Share Test",
-            "language": "en",
-            "topic": "Talking",
-            "mode": "chat",
-        },
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 201:
-        print(f"❌ Failed to create room: {resp.status_code} {resp.text}")
-        return False
-    room = resp.json()
-    room_id = room["id"]
-    print(f"✅ Room created: {room_id} - '{room['title']}'")
+    all_passed = True
+    for invalid_birthday, description in test_cases:
+        email = f"dob_test_invalid_{datetime.now().timestamp()}@demo.com"
+        token, user = register_user(email)
+        if not token:
+            print(f"❌ TEST 2 ({description}) FAILED: Could not register user")
+            all_passed = False
+            continue
+        
+        updates = {"birthday": invalid_birthday}
+        resp = update_profile(token, updates)
+        
+        if resp.status_code != 400:
+            print(f"❌ TEST 2 ({description}) FAILED: Expected 400, got {resp.status_code}")
+            print(f"   Response: {resp.text}")
+            all_passed = False
+            continue
+        
+        data = resp.json()
+        detail = data.get("detail", "")
+        
+        if "Invalid birthday format" not in detail or "YYYY-MM-DD" not in detail:
+            print(f"❌ TEST 2 ({description}) FAILED: Expected 'Invalid birthday format. Expected YYYY-MM-DD.', got '{detail}'")
+            all_passed = False
+            continue
+        
+        print(f"✅ TEST 2 ({description}) PASSED: Got 400 with correct error message")
     
-    # Ensure conversation exists
-    print(f"\n[Step 1b] Ensure conversation exists between mei and diego...")
-    resp = requests.post(
-        f"{BASE_URL}/chats",
-        json={"partner_id": diego_id},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code not in [200, 201]:
-        print(f"❌ Failed to create/get conversation: {resp.status_code} {resp.text}")
-        return False
-    conv_id = resp.json()["id"]
-    print(f"✅ Conversation ID: {conv_id}")
+    return all_passed
+
+def test_scenario_3_too_young():
+    """Test 3: Out-of-range age (too young)"""
+    print("\n" + "="*80)
+    print("TEST 3: Out-of-range age (too young)")
+    print("="*80)
     
-    # Step 2: Send room card message
-    print(f"\n[Step 2] Send room card message with room_id...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        json={"room_id": room_id},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 201:
-        print(f"❌ Failed to send room message: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    print(f"✅ Room message sent: {msg['id']}")
-    print(f"   Message: {msg}")
-    
-    # Step 3: Verify response fields
-    print(f"\n[Step 3] Verify response fields...")
-    
-    if msg.get("type") != "room":
-        print(f"❌ Expected type='room', got '{msg.get('type')}'")
-        return False
-    print(f"✅ type == 'room'")
-    
-    if msg.get("room_id") != room_id:
-        print(f"❌ Expected room_id={room_id}, got {msg.get('room_id')}")
-        return False
-    print(f"✅ room_id == {room_id}")
-    
-    if not msg.get("text", "").startswith("🎙️"):
-        print(f"❌ Expected text to start with '🎙️', got '{msg.get('text')}'")
-        return False
-    print(f"✅ text starts with '🎙️': '{msg['text']}'")
-    
-    room_field = msg.get("room")
-    if not room_field:
-        print(f"❌ Expected 'room' field in response, got None")
-        return False
-    print(f"✅ 'room' field present: {room_field}")
-    
-    # Verify room field structure
-    required_fields = ["id", "title", "is_live", "member_count", "language", "host"]
-    for field in required_fields:
-        if field not in room_field:
-            print(f"❌ Expected '{field}' in room field, not found")
-            return False
-    print(f"✅ All required room fields present: {required_fields}")
-    
-    if room_field["title"] != "Chat Share Test":
-        print(f"❌ Expected title='Chat Share Test', got '{room_field['title']}'")
-        return False
-    print(f"✅ room.title == 'Chat Share Test'")
-    
-    if room_field["is_live"] != True:
-        print(f"❌ Expected is_live=true, got {room_field['is_live']}")
-        return False
-    print(f"✅ room.is_live == true")
-    
-    if room_field["member_count"] < 1:
-        print(f"❌ Expected member_count >= 1, got {room_field['member_count']}")
-        return False
-    print(f"✅ room.member_count >= 1: {room_field['member_count']}")
-    
-    if room_field["language"] != "en":
-        print(f"❌ Expected language='en', got '{room_field['language']}'")
-        return False
-    print(f"✅ room.language == 'en'")
-    
-    host = room_field.get("host")
-    if not host or not host.get("id") or not host.get("name"):
-        print(f"❌ Expected host with id and name, got {host}")
-        return False
-    print(f"✅ room.host present: id={host['id']}, name={host['name']}")
-    
-    # Step 4: GET /api/chats/{cid}/messages - verify same room field
-    print(f"\n[Step 4] GET /api/chats/{conv_id}/messages - verify room field persists...")
-    resp = requests.get(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to get messages: {resp.status_code} {resp.text}")
-        return False
-    messages = resp.json()
-    target_msg = next((m for m in messages if m["id"] == msg["id"]), None)
-    if not target_msg:
-        print(f"❌ Room message not found in messages list")
+    email = f"dob_test_young_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 3 FAILED: Could not register user")
         return False
     
-    room_field_from_list = target_msg.get("room")
-    if not room_field_from_list:
-        print(f"❌ Expected 'room' field in message from list, got None")
-        return False
+    # Birthday that makes user 6 years old
+    updates = {"birthday": "2020-01-01"}
+    resp = update_profile(token, updates)
     
-    if room_field_from_list["title"] != "Chat Share Test":
-        print(f"❌ Expected title='Chat Share Test' in list, got '{room_field_from_list['title']}'")
-        return False
-    
-    print(f"✅ GET messages returns same room field: {room_field_from_list}")
-    
-    # Step 5: Verify last_message on conversation
-    print(f"\n[Step 5] Verify last_message on conversation reflects preview text...")
-    resp = requests.get(
-        f"{BASE_URL}/chats/{conv_id}",
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 200:
-        print(f"❌ Failed to get conversation: {resp.status_code} {resp.text}")
-        return False
-    conv = resp.json()
-    last_msg = conv.get("last_message")
-    if not last_msg:
-        print(f"❌ Expected last_message in conversation, got None")
-        return False
-    
-    if not last_msg.get("text", "").startswith("🎙️"):
-        print(f"❌ Expected last_message.text to start with '🎙️', got '{last_msg.get('text')}'")
-        return False
-    
-    if "Chat Share Test" not in last_msg.get("text", ""):
-        print(f"❌ Expected 'Chat Share Test' in last_message.text, got '{last_msg.get('text')}'")
-        return False
-    
-    print(f"✅ last_message reflects preview text: '{last_msg['text']}'")
-    
-    # Step 6: Sending with unknown room_id → 404
-    print(f"\n[Step 6] Test unknown room_id → 404 'Voice room not found'...")
-    fake_room_id = "00000000-0000-0000-0000-000000000000"
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        json={"room_id": fake_room_id},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 404:
-        print(f"❌ Expected 404, got {resp.status_code}")
-        return False
-    if "room not found" not in resp.text.lower():
-        print(f"❌ Expected 'room not found' in error, got: {resp.text}")
-        return False
-    print(f"✅ VERIFY: Unknown room_id returns 404 'Voice room not found'")
-    
-    # Step 7: Backward compat - text message still works
-    print(f"\n[Step 7] Backward compat: POST {{text:'Just text'}} returns type='text'...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        json={"text": "Just text"},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
-    if resp.status_code != 201:
-        print(f"❌ Failed to send text message: {resp.status_code} {resp.text}")
-        return False
-    msg = resp.json()
-    if msg.get("type") != "text":
-        print(f"❌ Expected type='text', got '{msg.get('type')}'")
-        return False
-    if "room" in msg:
-        print(f"❌ Expected no 'room' field for text message, got {msg.get('room')}")
-        return False
-    print(f"✅ VERIFY: Text message returns type='text' with no room field")
-    
-    # Step 8: Empty text without room_id → 400
-    print(f"\n[Step 8] Test empty text without room_id → 400...")
-    resp = requests.post(
-        f"{BASE_URL}/chats/{conv_id}/messages",
-        json={"text": ""},
-        headers={"Authorization": f"Bearer {mei_token}"},
-        timeout=10,
-    )
     if resp.status_code != 400:
-        print(f"❌ Expected 400, got {resp.status_code}")
+        print(f"❌ TEST 3 FAILED: Expected 400, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
         return False
-    print(f"✅ VERIFY: Empty text without room_id returns 400")
     
-    print(f"\n{'='*80}")
-    print(f"✅ TEST B PASSED: All 8 steps verified successfully")
-    print(f"{'='*80}")
+    data = resp.json()
+    detail = data.get("detail", "")
+    
+    if "Age must be between 13 and 120" not in detail:
+        print(f"❌ TEST 3 FAILED: Expected 'Age must be between 13 and 120.', got '{detail}'")
+        return False
+    
+    print(f"✅ TEST 3 PASSED: Got 400 with correct error message")
     return True
 
+def test_scenario_4_future_date():
+    """Test 4: Out-of-range age (future date)"""
+    print("\n" + "="*80)
+    print("TEST 4: Out-of-range age (future date)")
+    print("="*80)
+    
+    email = f"dob_test_future_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 4 FAILED: Could not register user")
+        return False
+    
+    # Future birthday
+    updates = {"birthday": "2030-01-01"}
+    resp = update_profile(token, updates)
+    
+    if resp.status_code != 400:
+        print(f"❌ TEST 4 FAILED: Expected 400, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    data = resp.json()
+    detail = data.get("detail", "")
+    
+    if "Age must be between 13 and 120" not in detail:
+        print(f"❌ TEST 4 FAILED: Expected 'Age must be between 13 and 120.', got '{detail}'")
+        return False
+    
+    print(f"✅ TEST 4 PASSED: Got 400 with correct error message")
+    return True
+
+def test_scenario_5_age_lock():
+    """Test 5: Age lock (birthday cannot change once set)"""
+    print("\n" + "="*80)
+    print("TEST 5: Age lock (birthday cannot change once set)")
+    print("="*80)
+    
+    email = f"dob_test_lock_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 5 FAILED: Could not register user")
+        return False
+    
+    # First PUT with birthday
+    updates1 = {"birthday": "2000-05-15"}
+    resp1 = update_profile(token, updates1)
+    
+    if resp1.status_code != 200:
+        print(f"❌ TEST 5 FAILED: First PUT returned {resp1.status_code}")
+        print(f"   Response: {resp1.text}")
+        return False
+    
+    data1 = resp1.json()
+    birthday1 = data1.get("birthday")
+    age1 = data1.get("age")
+    
+    print(f"✅ First PUT successful: birthday={birthday1}, age={age1}")
+    
+    if birthday1 != "2000-05-15":
+        print(f"❌ TEST 5 FAILED: First birthday should be '2000-05-15', got {birthday1}")
+        return False
+    
+    if age1 != 26:
+        print(f"❌ TEST 5 FAILED: First age should be 26, got {age1}")
+        return False
+    
+    # Second PUT trying to change birthday (should be silently ignored)
+    updates2 = {"birthday": "1990-01-01"}
+    resp2 = update_profile(token, updates2)
+    
+    if resp2.status_code != 200:
+        print(f"❌ TEST 5 FAILED: Second PUT returned {resp2.status_code}")
+        print(f"   Response: {resp2.text}")
+        return False
+    
+    print(f"✅ Second PUT returned 200 (silently ignored)")
+    
+    # Verify via GET /api/auth/me that birthday and age are unchanged
+    resp_me = get_me(token)
+    if resp_me.status_code != 200:
+        print(f"❌ TEST 5 FAILED: GET /api/auth/me returned {resp_me.status_code}")
+        return False
+    
+    data_me = resp_me.json()
+    birthday_final = data_me.get("birthday")
+    age_final = data_me.get("age")
+    
+    print(f"   GET /api/auth/me: birthday={birthday_final}, age={age_final}")
+    
+    if birthday_final != "2000-05-15":
+        print(f"❌ TEST 5 FAILED: Birthday should still be '2000-05-15', got {birthday_final}")
+        return False
+    
+    if age_final != 26:
+        print(f"❌ TEST 5 FAILED: Age should still be 26, got {age_final}")
+        return False
+    
+    print(f"✅ TEST 5 PASSED: Birthday and age locked correctly")
+    return True
+
+def test_scenario_6_backward_compat():
+    """Test 6: Backward compat — text-only update"""
+    print("\n" + "="*80)
+    print("TEST 6: Backward compat — text-only update")
+    print("="*80)
+    
+    email = f"dob_test_compat_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 6 FAILED: Could not register user")
+        return False
+    
+    # Update with just bio (no birthday)
+    updates = {"bio": "hello there"}
+    resp = update_profile(token, updates)
+    
+    if resp.status_code != 200:
+        print(f"❌ TEST 6 FAILED: PUT returned {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    data = resp.json()
+    bio = data.get("bio")
+    
+    if bio != "hello there":
+        print(f"❌ TEST 6 FAILED: bio should be 'hello there', got {bio}")
+        return False
+    
+    print(f"✅ TEST 6 PASSED: Text-only update works, bio={bio}")
+    return True
+
+def test_scenario_7_direct_age():
+    """Test 7: Existing behavior — direct age still works when birthday NOT set"""
+    print("\n" + "="*80)
+    print("TEST 7: Existing behavior — direct age still works when birthday NOT set")
+    print("="*80)
+    
+    email = f"dob_test_direct_{datetime.now().timestamp()}@demo.com"
+    token, user = register_user(email)
+    if not token:
+        print("❌ TEST 7 FAILED: Could not register user")
+        return False
+    
+    # Update with direct age (no birthday)
+    updates = {"age": 30, "gender": "female"}
+    resp = update_profile(token, updates)
+    
+    if resp.status_code != 200:
+        print(f"❌ TEST 7 FAILED: PUT returned {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    data = resp.json()
+    age = data.get("age")
+    
+    if age != 30:
+        print(f"❌ TEST 7 FAILED: age should be 30, got {age}")
+        return False
+    
+    print(f"✅ TEST 7 PASSED: Direct age update works, age={age}")
+    return True
 
 def main():
     print("\n" + "="*80)
-    print("ROUND 12 BACKEND TESTING: Chat Reactions + Room-Share Messages")
+    print("BACKEND TEST: Birthday → Derived Age Feature (Round 13)")
     print("="*80)
     print(f"Backend URL: {BASE_URL}")
-    print(f"Test users: {MEI_EMAIL}, {DIEGO_EMAIL}")
+    print(f"Test Date: {datetime.now().isoformat()}")
     
-    try:
-        # Test Feature A: Message reactions
-        test_a_passed = test_feature_a_reactions()
-        
-        # Test Feature B: Room-share messages
-        test_b_passed = test_feature_b_room_share()
-        
-        # Summary
-        print("\n" + "="*80)
-        print("FINAL SUMMARY")
-        print("="*80)
-        print(f"Feature A (Message Reactions): {'✅ PASSED' if test_a_passed else '❌ FAILED'}")
-        print(f"Feature B (Room-Share Messages): {'✅ PASSED' if test_b_passed else '❌ FAILED'}")
-        
-        if test_a_passed and test_b_passed:
-            print("\n🎉 ALL TESTS PASSED - Both features working correctly!")
-            return 0
-        else:
-            print("\n❌ SOME TESTS FAILED - See details above")
-            return 1
-            
-    except Exception as e:
-        print(f"\n❌ UNEXPECTED ERROR: {e}")
-        import traceback
-        traceback.print_exc()
+    results = []
+    
+    # Run all test scenarios
+    results.append(("Test 1: Happy path", test_scenario_1_happy_path()))
+    results.append(("Test 2: Invalid format", test_scenario_2_invalid_format()))
+    results.append(("Test 3: Too young", test_scenario_3_too_young()))
+    results.append(("Test 4: Future date", test_scenario_4_future_date()))
+    results.append(("Test 5: Age lock", test_scenario_5_age_lock()))
+    results.append(("Test 6: Backward compat", test_scenario_6_backward_compat()))
+    results.append(("Test 7: Direct age", test_scenario_7_direct_age()))
+    
+    # Summary
+    print("\n" + "="*80)
+    print("TEST SUMMARY")
+    print("="*80)
+    
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for name, result in results:
+        status = "✅ PASSED" if result else "❌ FAILED"
+        print(f"{status}: {name}")
+    
+    print(f"\nTotal: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("\n🎉 ALL TESTS PASSED!")
+        return 0
+    else:
+        print(f"\n⚠️  {total - passed} test(s) failed")
         return 1
 
-
 if __name__ == "__main__":
-    sys.exit(main())
+    exit(main())

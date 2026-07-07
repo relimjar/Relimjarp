@@ -1280,3 +1280,52 @@ frontend:
 agent_communication:
     - agent: "main"
       message: "Round 12 changes: (1) BACKEND: New POST /api/chats/{cid}/messages/{mid}/react endpoint (toggle emoji, one per user per message, returns aggregated reactions). Chat send_message now accepts room_id (creates type='room' message with live host card). (2) FRONTEND: New MessageReactionsPopup component - Instagram-style long-press with 7 emojis + expand grid + context menu. Reactions displayed as small badges under bubbles. RoomMomentCard updated to show host avatar + name inline (used in Moments AND chat now). Voice room 3-dot switcher panel narrowed (70%/max 320). Top icons redesigned with distinct colors. Share to Chat now sends room card. Please backend-test first: (A) POST /api/chats/{cid}/messages/{mid}/react - login mei, create chat with diego, send message, mei reacts ❤️ → 200, response.reactions=[{emoji:'❤️',count:1,user_ids:[mei_id]}]. React ❤️ again → cleared. React 😂 → replaces. Diego also reacts ❤️ → count=1. Unauth 401. Unknown message 404. (B) POST /api/chats/{cid}/messages with {room_id} - mei creates room, then POST /chats/{diego_conv}/messages {room_id:room_id} → 200, response.type='room', response.room contains {host:{id,name,avatar_url}, title, is_live:true, member_count, language}. GET messages returns same shape with room field. Unknown room_id → 404. Text-only send still works (backward compat)."
+
+## Test Run — Signup/Login polish + Combined Age+Gender step + DOB picker (Round 13)
+user_problem_statement: (1) Fix signup/login issues nicely - better validation, error messages, inline hints. (2) Merge onboarding age and gender into ONE page. (3) Age input via Year/Month/Day date-of-birth pickers (not manual number typing). Compute age from DOB.
+
+backend:
+  - task: "PUT /api/users/me accepts birthday (YYYY-MM-DD) and derives age automatically"
+    implemented: true
+    working: true
+    file: "backend/routes/users.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "When PUT /users/me receives {birthday:'YYYY-MM-DD'}, age is derived from it and stored on the user. Rejects malformed dates (400 'Invalid birthday format') and out-of-range ages (400 'Age must be between 13 and 120'). Birthday and age are one-time locks (silently ignored if already set to a different value). Text-only updates unaffected."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL 7 TESTS PASSED (7/7). Test results: (1) Happy path ✅ - PUT /api/users/me with birthday='2000-05-15' returns 200, age=26 (correctly derived for 2026-07-07), birthday='2000-05-15', gender='male', country='United States'. (2) Invalid format ✅ - All 3 invalid formats ('2000/05/15', '15-05-2000', 'invalid') correctly return 400 with 'Invalid birthday format. Expected YYYY-MM-DD.' (3) Too young ✅ - birthday='2020-01-01' (age 6) correctly returns 400 with 'Age must be between 13 and 120.' (4) Future date ✅ - birthday='2030-01-01' correctly returns 400 with 'Age must be between 13 and 120.' (5) Age lock ✅ - First PUT with birthday='2000-05-15' sets age=26, second PUT with birthday='1990-01-01' returns 200 but silently ignores change (GET /api/auth/me confirms birthday still '2000-05-15', age still 26). (6) Backward compat ✅ - PUT with only {bio:'hello there'} returns 200, bio updated correctly. (7) Direct age ✅ - PUT with {age:30, gender:'female'} (no birthday) returns 200, age=30. All validation, derivation, and locking logic working perfectly."
+
+frontend:
+  - task: "Auth screen: cleaner validation + inline hints + friendly error mapping"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/auth.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Password length hint below field (6-char minimum on register). Submit button disabled+opaque until form valid. Backend errors translated to user-friendly messages ('Wrong email or password.', 'This email is already registered.', 'Can't reach the server.'). Email regex validation added."
+  - task: "Onboarding: combined age + gender step with DOB picker (Year/Month/Day dropdowns)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/onboarding.tsx, frontend/src/components/DateOfBirthPicker.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Steps reduced from 6 to 5 - Age (step 3) and Gender (step 4) merged into 'A little about you'. New DateOfBirthPicker component with 3 tap-open dropdowns (Year, Month, Day) that show bottom-sheet FlatList of options. Age is derived and shown live ('You are 25 years old'). Gender cards below. Submits birthday to backend (server derives age). testIDs: dob-year-btn, dob-month-btn, dob-day-btn, dob-option-{value}, onboarding-dob-picker, onboarding-gender-male|female."
+
+agent_communication:
+    - agent: "main"
+      message: "Round 13. Backend: PUT /api/users/me now accepts 'birthday' (YYYY-MM-DD ISO date), computes age from it. Please test: (A) Login as newly-registered user (register with unique email + Password123!), set profile: PUT /users/me with body {name:'X', native_language:'en', learning_language:'es', country:'United States', birthday:'2000-05-15', gender:'male', interests:['Coffee']} → 200, response.age == 25 (or exact based on 2026-current), response.birthday == '2000-05-15'. (B) Malformed birthday '2000/05/15' or '15-05-2000' → 400 'Invalid birthday format'. (C) Future date '2030-05-15' derives age < 13 → 400 'Age must be between 13 and 120'. (D) Age-lock: after birthday is set once, another PUT with different birthday '1990-01-01' is silently dropped (returned user still has original birthday='2000-05-15', age unchanged). (E) Text-only PUT {bio:'hi'} unaffected. Use a fresh register call for each user to avoid the age-lock. Do NOT test the frontend — user will test manually."
+    - agent: "testing"
+      message: "✅ ROUND 13 BACKEND TESTING COMPLETED - ALL TESTS PASSED (7/7). Birthday → Derived Age feature is fully functional. Test summary: TEST 1 - Happy path ✅: Fresh user registration, PUT /api/users/me with birthday='2000-05-15' + native_language/learning_language/country/gender/interests returns 200. Age correctly derived as 26 (for date 2026-07-07), birthday='2000-05-15', gender='male', country='United States' all persisted. TEST 2 - Invalid format ✅: All 3 invalid birthday formats ('2000/05/15', '15-05-2000', 'invalid') correctly rejected with 400 and error message 'Invalid birthday format. Expected YYYY-MM-DD.' TEST 3 - Too young ✅: birthday='2020-01-01' (age 6) correctly rejected with 400 and 'Age must be between 13 and 120.' TEST 4 - Future date ✅: birthday='2030-01-01' correctly rejected with 400 and 'Age must be between 13 and 120.' TEST 5 - Age lock ✅: First PUT with birthday='2000-05-15' sets age=26. Second PUT with birthday='1990-01-01' returns 200 but silently ignores change. GET /api/auth/me confirms birthday still '2000-05-15' and age still 26. Lock working correctly. TEST 6 - Backward compat ✅: PUT with only {bio:'hello there'} returns 200, bio updated correctly, no errors. TEST 7 - Direct age ✅: PUT with {age:30, gender:'female'} (no birthday) returns 200, age=30. Direct age setting still works when birthday not set. No critical issues found. All validation, age derivation, and locking logic working perfectly. Ready for main agent to summarize and finish."

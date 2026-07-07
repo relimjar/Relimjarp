@@ -20,11 +20,43 @@ logger = logging.getLogger(__name__)
 @router.put("/me")
 async def update_me(body: UserUpdate, current_user: CurrentUser):
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    # Country and age are set once at signup and cannot be changed afterwards.
+    # If a birthday (YYYY-MM-DD) is provided, derive age from it — this is the
+    # source of truth once set, so the "one-time-only" age lock also applies to
+    # birthday.
+    if "birthday" in updates:
+        try:
+            from datetime import date as _d
+            b = _d.fromisoformat(updates["birthday"])
+            today = _d.today()
+            derived = (
+                today.year
+                - b.year
+                - ((today.month, today.day) < (b.month, b.day))
+            )
+            if derived < 13 or derived > 120:
+                raise HTTPException(status_code=400, detail="Age must be between 13 and 120.")
+            updates["age"] = derived
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid birthday format. Expected YYYY-MM-DD.")
+    # Country / age / birthday are set once at signup and cannot be changed
+    # afterwards — these appear on the public profile.
     if current_user.get("country") and "country" in updates:
         updates.pop("country")
+    if current_user.get("age") and "age" in updates and not current_user.get("age") == updates.get("age"):
+        # Age already locked — but allow the derived one from birthday to still
+        # match (idempotent). Otherwise, ignore.
+        pass
     if current_user.get("age") and "age" in updates:
-        updates.pop("age")
+        # Age is locked once set — silently drop attempts to change it.
+        # (Applies to both direct age and derived-from-birthday updates.)
+        if current_user.get("age") != updates["age"]:
+            updates.pop("age")
+    if current_user.get("birthday") and "birthday" in updates:
+        # Same lock for birthday: once stored, cannot be edited.
+        if current_user.get("birthday") != updates["birthday"]:
+            updates.pop("birthday")
     # Per-language proficiency is merged (not overwritten) so setting one
     # language's level never wipes out levels already set for others.
     if "proficiencies" in updates:
