@@ -93,6 +93,36 @@ export default function Moments() {
     }, [load, refreshNotifications]),
   );
 
+  const voteOnPoll = async (momentId: string, optionIndex: number) => {
+    // Optimistic — flip local counts first so the bar animates immediately.
+    setMoments((prev) =>
+      prev.map((m) => {
+        if (m.id !== momentId || !m.poll) return m;
+        const wasIdx = m.poll.my_vote;
+        if (wasIdx === optionIndex) return m; // no change if same option
+        const opts = m.poll.options.map((o, i) => {
+          let v = o.votes;
+          if (wasIdx === i) v = Math.max(0, v - 1);
+          if (i === optionIndex) v = v + 1;
+          return { ...o, votes: v };
+        });
+        const total = wasIdx == null ? (m.poll.total_votes || 0) + 1 : m.poll.total_votes;
+        return {
+          ...m,
+          poll: { ...m.poll, options: opts, total_votes: total, my_vote: optionIndex },
+        };
+      }),
+    );
+    try {
+      const updated = await api.post<Moment>(`/moments/${momentId}/vote`, {
+        option_index: optionIndex,
+      });
+      setMoments((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+    } catch {
+      load();
+    }
+  };
+
   const toggleLike = async (moment: Moment) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMoments((prev) =>
@@ -299,6 +329,61 @@ export default function Moments() {
                   contentFit="cover"
                   transition={150}
                 />
+              ) : null}
+              {item.poll ? (
+                <View style={styles.pollWrap} testID={`moment-poll-${item.id}`}>
+                  {(() => {
+                    const total = item.poll.total_votes || 0;
+                    return item.poll.options.map((opt, idx) => {
+                      const pct = total > 0 ? (opt.votes / total) * 100 : 0;
+                      const mine = item.poll?.my_vote === idx;
+                      return (
+                        <Pressable
+                          key={idx}
+                          testID={`moment-poll-option-${item.id}-${idx}`}
+                          onPress={() => voteOnPoll(item.id, idx)}
+                          style={[
+                            styles.pollOption,
+                            mine && { borderColor: colors.brand, borderWidth: 1.5 },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.pollFill,
+                              {
+                                width: `${pct}%`,
+                                backgroundColor: mine
+                                  ? colors.brandTertiary
+                                  : colors.surfaceSecondary,
+                              },
+                            ]}
+                          />
+                          <View style={styles.pollOptionInner}>
+                            <Text style={styles.pollOptionText} numberOfLines={2}>
+                              {opt.text}
+                            </Text>
+                            <Text style={styles.pollOptionPct}>
+                              {total > 0 ? `${Math.round(pct)}%` : ""}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    });
+                  })()}
+                  <Text style={styles.pollTotal}>
+                    {item.poll.total_votes || 0} vote
+                    {(item.poll.total_votes || 0) === 1 ? "" : "s"}
+                  </Text>
+                </View>
+              ) : null}
+              {item.tags && item.tags.length > 0 ? (
+                <View style={styles.tagRow}>
+                  {item.tags.map((t) => (
+                    <View key={t} style={styles.tagChip}>
+                      <Text style={styles.tagChipText}>#{t}</Text>
+                    </View>
+                  ))}
+                </View>
               ) : null}
               <View style={styles.actionRow}>
                 <Pressable
@@ -557,6 +642,66 @@ const makeStyles = (colors: ThemeColors) =>
     height: 220,
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceTertiary,
+  },
+  pollWrap: {
+    gap: 8,
+    marginTop: 4,
+  },
+  pollOption: {
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: "hidden",
+    backgroundColor: colors.surface,
+    minHeight: 44,
+  },
+  pollFill: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+  },
+  pollOptionInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  pollOptionText: {
+    flex: 1,
+    fontFamily: fonts.textSemi,
+    fontSize: 14,
+    color: colors.onSurface,
+  },
+  pollOptionPct: {
+    fontFamily: fonts.textBold,
+    fontSize: 13,
+    color: colors.brand,
+    marginLeft: 8,
+  },
+  pollTotal: {
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    color: colors.onSurfaceSecondary,
+    marginTop: 2,
+  },
+  tagRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  tagChip: {
+    backgroundColor: colors.brandTertiary,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  tagChipText: {
+    fontFamily: fonts.textBold,
+    fontSize: 12,
+    color: colors.onBrandTertiary,
   },
   actionRow: {
     flexDirection: "row",

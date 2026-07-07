@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Round 16 Backend Testing
+Round 17 Backend Testing - Poll Feature on Moments
 Tests for:
-A) Room create with announcement + background
-B) Shared room card matches voice-tab shape (via moments)
-C) Shared room card via chat message
-D) Moment tag sanitization
-E) Tag limit (9+ tags rejected)
-F) Announcement length limit
-G) Backward compatibility
+A) Create moment with 3-option poll
+B) Vote for option 0 (Coffee)
+C) Revote for option 2 (Water) - one vote per user
+D) Diego also votes for option 2
+E) Vote on non-existent moment
+F) Vote on moment without poll
+G) Vote with out-of-range option
+H) Create moment with only 1 poll option (invalid)
+I) Create moment with poll but no text no image (poll counts as content)
+J) Backward compat - no poll field
+K) GET /api/moments returns poll in list
 """
 
 import requests
@@ -33,10 +37,94 @@ def login(email, password):
     data = resp.json()
     return data.get("token"), data.get("user")
 
-def test_a_room_create_with_announcement_background():
-    """A) Room create with announcement + background"""
+def test_a_create_moment_with_poll():
+    """A) Create moment with 3-option poll"""
     print("\n" + "="*80)
-    print("TEST A: Room create with announcement + background")
+    print("TEST A: Create moment with 3-option poll")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return None
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Create moment with poll
+    moment_data = {
+        "text": "Favorite drink?",
+        "poll": {
+            "options": [
+                {"text": "Coffee"},
+                {"text": "Tea"},
+                {"text": "Water"}
+            ]
+        }
+    }
+    
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments with poll → {resp.status_code}")
+    
+    if resp.status_code != 201:
+        print(f"   ❌ Expected 201, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return None
+    
+    moment = resp.json()
+    moment_id = moment.get("id")
+    print(f"   ✅ Moment created with ID: {moment_id}")
+    
+    # 2. Verify response.poll structure
+    print(f"\n2. Verify response.poll:")
+    
+    poll = moment.get("poll")
+    if not poll:
+        print(f"   ❌ poll field is missing")
+        return None
+    
+    # Check options length
+    options = poll.get("options")
+    if not options or len(options) != 3:
+        print(f"   ❌ Expected 3 options, got {len(options) if options else 0}")
+        return None
+    print(f"   ✅ options.length = 3")
+    
+    # Check each option
+    expected_texts = ["Coffee", "Tea", "Water"]
+    for i, (opt, expected_text) in enumerate(zip(options, expected_texts)):
+        text = opt.get("text")
+        votes = opt.get("votes")
+        
+        if text != expected_text:
+            print(f"   ❌ options[{i}].text: expected '{expected_text}', got '{text}'")
+            return None
+        
+        if votes != 0:
+            print(f"   ❌ options[{i}].votes: expected 0, got {votes}")
+            return None
+        
+        print(f"   ✅ options[{i}]: text='{text}', votes=0")
+    
+    # Check total_votes
+    total_votes = poll.get("total_votes")
+    if total_votes != 0:
+        print(f"   ❌ total_votes: expected 0, got {total_votes}")
+        return None
+    print(f"   ✅ total_votes = 0")
+    
+    # Check my_vote
+    my_vote = poll.get("my_vote")
+    if my_vote is not None:
+        print(f"   ❌ my_vote: expected null, got {my_vote}")
+        return None
+    print(f"   ✅ my_vote = null")
+    
+    print(f"\n✅ TEST A PASSED")
+    return moment_id
+
+def test_b_vote_for_option_0(moment_id):
+    """B) Vote for option 0 (Coffee)"""
+    print("\n" + "="*80)
+    print("TEST B: Vote for option 0 (Coffee)")
     print("="*80)
     
     token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
@@ -45,72 +133,136 @@ def test_a_room_create_with_announcement_background():
     
     headers = {"Authorization": f"Bearer {token}"}
     
-    # 1. Create room with announcement and background
-    room_data = {
-        "title": "Card Match Test",
-        "language": "en",
-        "topic": "General",
-        "mode": "chat",
-        "is_private": False,
-        "background": 2,
-        "announcement": "Please be kind ✨"
-    }
+    # 1. Vote for option 0
+    vote_data = {"option_index": 0}
+    resp = requests.post(f"{BASE_URL}/moments/{moment_id}/vote", json=vote_data, headers=headers)
+    print(f"\n1. POST /api/moments/{moment_id}/vote (option_index=0) → {resp.status_code}")
     
-    resp = requests.post(f"{BASE_URL}/rooms", json=room_data, headers=headers)
-    print(f"\n1. POST /api/rooms → {resp.status_code}")
-    
-    if resp.status_code != 201:
-        print(f"   ❌ Expected 201, got {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"   ❌ Expected 200, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
     
-    room = resp.json()
-    room_id = room.get("id")
+    moment = resp.json()
     
-    # 2. Verify response fields
-    print(f"\n2. Verify response fields:")
+    # 2. Verify response.poll
+    print(f"\n2. Verify response.poll after voting:")
     
-    announcement = room.get("announcement")
-    print(f"   - announcement: {repr(announcement)}")
-    if announcement != "Please be kind ✨":
-        print(f"   ❌ Expected 'Please be kind ✨', got {repr(announcement)}")
-        return False
-    print(f"   ✅ announcement matches")
-    
-    background = room.get("background")
-    print(f"   - background: {background}")
-    if background != 2:
-        print(f"   ❌ Expected 2, got {background}")
-        return False
-    print(f"   ✅ background matches")
-    
-    host = room.get("host")
-    print(f"   - host: {host}")
-    if not host:
-        print(f"   ❌ host is missing")
+    poll = moment.get("poll")
+    if not poll:
+        print(f"   ❌ poll field is missing")
         return False
     
-    if not host.get("id"):
-        print(f"   ❌ host.id is missing")
+    options = poll.get("options")
+    
+    # Check option 0 votes
+    if options[0].get("votes") != 1:
+        print(f"   ❌ options[0].votes: expected 1, got {options[0].get('votes')}")
         return False
+    print(f"   ✅ options[0].votes = 1")
     
-    if not host.get("name"):
-        print(f"   ❌ host.name is missing")
+    # Check option 1 votes
+    if options[1].get("votes") != 0:
+        print(f"   ❌ options[1].votes: expected 0, got {options[1].get('votes')}")
         return False
+    print(f"   ✅ options[1].votes = 0")
     
-    if "avatar_url" not in host:
-        print(f"   ❌ host.avatar_url is missing")
+    # Check option 2 votes
+    if options[2].get("votes") != 0:
+        print(f"   ❌ options[2].votes: expected 0, got {options[2].get('votes')}")
         return False
+    print(f"   ✅ options[2].votes = 0")
     
-    print(f"   ✅ host contains id, name, avatar_url")
+    # Check my_vote
+    my_vote = poll.get("my_vote")
+    if my_vote != 0:
+        print(f"   ❌ my_vote: expected 0, got {my_vote}")
+        return False
+    print(f"   ✅ my_vote = 0")
     
-    print(f"\n✅ TEST A PASSED")
-    return room_id
+    # Check total_votes
+    total_votes = poll.get("total_votes")
+    if total_votes != 1:
+        print(f"   ❌ total_votes: expected 1, got {total_votes}")
+        return False
+    print(f"   ✅ total_votes = 1")
+    
+    print(f"\n✅ TEST B PASSED")
+    return True
 
-def test_b_shared_room_card_via_moments(room_id):
-    """B) Shared room card matches voice-tab shape (via moments)"""
+def test_c_revote_for_option_2(moment_id):
+    """C) Revote for option 2 (Water) - one vote per user"""
     print("\n" + "="*80)
-    print("TEST B: Shared room card matches voice-tab shape (via moments)")
+    print("TEST C: Revote for option 2 (Water) - one vote per user")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Revote for option 2
+    vote_data = {"option_index": 2}
+    resp = requests.post(f"{BASE_URL}/moments/{moment_id}/vote", json=vote_data, headers=headers)
+    print(f"\n1. POST /api/moments/{moment_id}/vote (option_index=2) → {resp.status_code}")
+    
+    if resp.status_code != 200:
+        print(f"   ❌ Expected 200, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    moment = resp.json()
+    
+    # 2. Verify response.poll
+    print(f"\n2. Verify response.poll after revoting:")
+    
+    poll = moment.get("poll")
+    if not poll:
+        print(f"   ❌ poll field is missing")
+        return False
+    
+    options = poll.get("options")
+    
+    # Check option 0 votes (should be 0 now, vote moved)
+    if options[0].get("votes") != 0:
+        print(f"   ❌ options[0].votes: expected 0, got {options[0].get('votes')}")
+        return False
+    print(f"   ✅ options[0].votes = 0 (vote moved from Coffee)")
+    
+    # Check option 1 votes
+    if options[1].get("votes") != 0:
+        print(f"   ❌ options[1].votes: expected 0, got {options[1].get('votes')}")
+        return False
+    print(f"   ✅ options[1].votes = 0")
+    
+    # Check option 2 votes (should be 1 now)
+    if options[2].get("votes") != 1:
+        print(f"   ❌ options[2].votes: expected 1, got {options[2].get('votes')}")
+        return False
+    print(f"   ✅ options[2].votes = 1 (vote moved to Water)")
+    
+    # Check my_vote
+    my_vote = poll.get("my_vote")
+    if my_vote != 2:
+        print(f"   ❌ my_vote: expected 2, got {my_vote}")
+        return False
+    print(f"   ✅ my_vote = 2")
+    
+    # Check total_votes (should still be 1, not 2)
+    total_votes = poll.get("total_votes")
+    if total_votes != 1:
+        print(f"   ❌ total_votes: expected 1 (still 1, not 2), got {total_votes}")
+        return False
+    print(f"   ✅ total_votes = 1 (still 1, not 2 - vote moved, not added)")
+    
+    print(f"\n✅ TEST C PASSED")
+    return True
+
+def test_d_diego_votes_option_2(moment_id):
+    """D) Diego also votes for option 2"""
+    print("\n" + "="*80)
+    print("TEST D: Diego also votes for option 2")
     print("="*80)
     
     diego_token, diego_user = login(DIEGO_EMAIL, DIEGO_PASSWORD)
@@ -119,302 +271,123 @@ def test_b_shared_room_card_via_moments(room_id):
     
     diego_headers = {"Authorization": f"Bearer {diego_token}"}
     
-    # 1. Diego joins room
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/join", headers=diego_headers)
-    print(f"\n1. POST /api/rooms/{room_id}/join → {resp.status_code}")
+    # 1. Diego votes for option 2
+    vote_data = {"option_index": 2}
+    resp = requests.post(f"{BASE_URL}/moments/{moment_id}/vote", json=vote_data, headers=diego_headers)
+    print(f"\n1. POST /api/moments/{moment_id}/vote as Diego (option_index=2) → {resp.status_code}")
     
     if resp.status_code != 200:
         print(f"   ❌ Expected 200, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
-    print(f"   ✅ Diego joined room")
     
-    # 2. Diego shares room to moments
-    share_data = {"text": "Come join"}
-    resp = requests.post(f"{BASE_URL}/rooms/{room_id}/share-to-moments", json=share_data, headers=diego_headers)
-    print(f"\n2. POST /api/rooms/{room_id}/share-to-moments → {resp.status_code}")
+    moment = resp.json()
     
-    if resp.status_code != 201:
-        print(f"   ❌ Expected 201, got {resp.status_code}")
-        print(f"   Response: {resp.text}")
-        return False
-    print(f"   ✅ Room shared to moments")
+    # 2. Verify response.poll from Diego's POV
+    print(f"\n2. Verify response.poll from Diego's POV:")
     
-    # 3. Get moments as Diego and find the shared room
-    resp = requests.get(f"{BASE_URL}/moments", headers=diego_headers)
-    print(f"\n3. GET /api/moments → {resp.status_code}")
-    
-    if resp.status_code != 200:
-        print(f"   ❌ Expected 200, got {resp.status_code}")
+    poll = moment.get("poll")
+    if not poll:
+        print(f"   ❌ poll field is missing")
         return False
     
-    moments = resp.json()
+    options = poll.get("options")
     
-    # Find moment with text "Come join"
-    target_moment = None
-    for m in moments:
-        if m.get("text") == "Come join":
-            target_moment = m
-            break
-    
-    if not target_moment:
-        print(f"   ❌ Could not find moment with text 'Come join'")
-        print(f"   Found {len(moments)} moments")
+    # Check option 2 votes (should be 2 now: mei + diego)
+    if options[2].get("votes") != 2:
+        print(f"   ❌ options[2].votes: expected 2, got {options[2].get('votes')}")
         return False
+    print(f"   ✅ options[2].votes = 2 (mei + diego)")
     
-    print(f"   ✅ Found moment with text 'Come join'")
-    
-    # 4. Verify moment.room contains required fields
-    print(f"\n4. Verify moment.room shape:")
-    
-    room = target_moment.get("room")
-    if not room:
-        print(f"   ❌ moment.room is missing")
+    # Check total_votes
+    total_votes = poll.get("total_votes")
+    if total_votes != 2:
+        print(f"   ❌ total_votes: expected 2, got {total_votes}")
         return False
+    print(f"   ✅ total_votes = 2")
     
-    # Required fields
-    required_fields = {
-        "id": str,
-        "title": str,
-        "is_live": bool,
-        "background": int,
-        "topic": str,
-        "is_private": bool,
-        "language": str,
-        "created_at": str,
-        "member_count": int,
-        "host": dict,
-        "members_preview": list
-    }
-    
-    for field, expected_type in required_fields.items():
-        value = room.get(field)
-        if value is None and field not in room:
-            print(f"   ❌ room.{field} is missing")
-            return False
-        if value is not None and not isinstance(value, expected_type):
-            print(f"   ❌ room.{field} has wrong type: expected {expected_type}, got {type(value)}")
-            return False
-        print(f"   ✅ room.{field} = {repr(value)[:80]}")
-    
-    # Verify specific values
-    if room.get("title") != "Card Match Test":
-        print(f"   ❌ Expected title 'Card Match Test', got {repr(room.get('title'))}")
+    # Check my_vote from Diego's POV
+    my_vote = poll.get("my_vote")
+    if my_vote != 2:
+        print(f"   ❌ my_vote (Diego's): expected 2, got {my_vote}")
         return False
+    print(f"   ✅ my_vote = 2 (from Diego's view)")
     
-    if room.get("is_live") != True:
-        print(f"   ❌ Expected is_live=true, got {room.get('is_live')}")
-        return False
-    
-    if room.get("background") != 2:
-        print(f"   ❌ Expected background=2, got {room.get('background')}")
-        return False
-    
-    if room.get("topic") != "General":
-        print(f"   ❌ Expected topic='General', got {repr(room.get('topic'))}")
-        return False
-    
-    if room.get("is_private") != False:
-        print(f"   ❌ Expected is_private=false, got {room.get('is_private')}")
-        return False
-    
-    if room.get("language") != "en":
-        print(f"   ❌ Expected language='en', got {repr(room.get('language'))}")
-        return False
-    
-    if room.get("member_count") < 2:
-        print(f"   ❌ Expected member_count >= 2, got {room.get('member_count')}")
-        return False
-    
-    # Verify host object
-    host = room.get("host")
-    if not host:
-        print(f"   ❌ room.host is missing")
-        return False
-    
+    # 3. GET moment as Mei and verify
     mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    mei_id = mei_user.get("id")
-    
-    if host.get("id") != mei_id:
-        print(f"   ❌ Expected host.id={mei_id}, got {host.get('id')}")
-        return False
-    
-    if not host.get("name"):
-        print(f"   ❌ host.name is missing")
-        return False
-    
-    if "avatar_url" not in host:
-        print(f"   ❌ host.avatar_url is missing")
-        return False
-    
-    if "country" not in host:
-        print(f"   ❌ host.country is missing")
-        return False
-    
-    print(f"   ✅ host object complete (id, name, avatar_url, country)")
-    
-    # Verify members_preview
-    members_preview = room.get("members_preview")
-    if not isinstance(members_preview, list):
-        print(f"   ❌ members_preview is not a list")
-        return False
-    
-    if len(members_preview) < 2:
-        print(f"   ❌ Expected at least 2 members in preview, got {len(members_preview)}")
-        return False
-    
-    # Check that members have id, name, avatar_url
-    for i, member in enumerate(members_preview[:2]):
-        if not member.get("id"):
-            print(f"   ❌ members_preview[{i}].id is missing")
-            return False
-        if not member.get("name"):
-            print(f"   ❌ members_preview[{i}].name is missing")
-            return False
-        if "avatar_url" not in member:
-            print(f"   ❌ members_preview[{i}].avatar_url is missing")
-            return False
-    
-    print(f"   ✅ members_preview contains at least 2 members with id/name/avatar_url")
-    
-    print(f"\n✅ TEST B PASSED")
-    return True
-
-def test_c_shared_room_card_via_chat(room_id):
-    """C) Shared room card via chat message"""
-    print("\n" + "="*80)
-    print("TEST C: Shared room card via chat message")
-    print("="*80)
-    
-    mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    diego_token, diego_user = login(DIEGO_EMAIL, DIEGO_PASSWORD)
-    
-    if not mei_token or not diego_token:
-        return False
-    
-    mei_headers = {"Authorization": f"Bearer {mei_token}"}
-    diego_id = diego_user.get("id")
-    mei_id = mei_user.get("id")
-    
-    # 1. Mei creates/finds conversation with Diego
-    conv_data = {"partner_id": diego_id}
-    resp = requests.post(f"{BASE_URL}/chats", json=conv_data, headers=mei_headers)
-    print(f"\n1. POST /api/chats (partner_id={diego_id}) → {resp.status_code}")
-    
-    if resp.status_code != 200:
-        print(f"   ❌ Expected 200, got {resp.status_code}")
-        print(f"   Response: {resp.text}")
-        return False
-    
-    conv = resp.json()
-    conv_id = conv.get("id")
-    print(f"   ✅ Conversation ID: {conv_id}")
-    
-    # 2. Mei sends room share message
-    msg_data = {"room_id": room_id}
-    resp = requests.post(f"{BASE_URL}/chats/{conv_id}/messages", json=msg_data, headers=mei_headers)
-    print(f"\n2. POST /api/chats/{conv_id}/messages (room_id={room_id}) → {resp.status_code}")
-    
-    if resp.status_code != 201:
-        print(f"   ❌ Expected 201, got {resp.status_code}")
-        print(f"   Response: {resp.text}")
-        return False
-    
-    msg = resp.json()
-    print(f"   ✅ Room share message created")
-    
-    # 3. Get messages and verify last message has room card
-    resp = requests.get(f"{BASE_URL}/chats/{conv_id}/messages", headers=mei_headers)
-    print(f"\n3. GET /api/chats/{conv_id}/messages → {resp.status_code}")
-    
-    if resp.status_code != 200:
-        print(f"   ❌ Expected 200, got {resp.status_code}")
-        return False
-    
-    messages = resp.json()
-    if not messages:
-        print(f"   ❌ No messages found")
-        return False
-    
-    last_msg = messages[-1]
-    
-    # Verify message type
-    if last_msg.get("type") != "room":
-        print(f"   ❌ Expected type='room', got {repr(last_msg.get('type'))}")
-        return False
-    print(f"   ✅ Message type is 'room'")
-    
-    # Verify room field
-    print(f"\n4. Verify message.room shape:")
-    
-    room = last_msg.get("room")
-    if not room:
-        print(f"   ❌ message.room is missing")
-        return False
-    
-    # Same shape as moments room card
-    required_fields = {
-        "id": str,
-        "title": str,
-        "is_live": bool,
-        "background": int,
-        "topic": str,
-        "is_private": bool,
-        "language": str,
-        "created_at": str,
-        "member_count": int,
-        "host": dict,
-        "members_preview": list
-    }
-    
-    for field, expected_type in required_fields.items():
-        value = room.get(field)
-        if value is None and field not in room:
-            print(f"   ❌ room.{field} is missing")
-            return False
-        if value is not None and not isinstance(value, expected_type):
-            print(f"   ❌ room.{field} has wrong type: expected {expected_type}, got {type(value)}")
-            return False
-        print(f"   ✅ room.{field} = {repr(value)[:80]}")
-    
-    # Verify host object
-    host = room.get("host")
-    if not host or not host.get("id") or not host.get("name") or "avatar_url" not in host:
-        print(f"   ❌ host object incomplete")
-        return False
-    print(f"   ✅ host object complete")
-    
-    # Verify members_preview
-    members_preview = room.get("members_preview")
-    if not isinstance(members_preview, list) or len(members_preview) < 2:
-        print(f"   ❌ members_preview should have at least 2 members")
-        return False
-    print(f"   ✅ members_preview has {len(members_preview)} members")
-    
-    print(f"\n✅ TEST C PASSED")
-    return True
-
-def test_d_moment_tag_sanitization():
-    """D) Moment tag sanitization"""
-    print("\n" + "="*80)
-    print("TEST D: Moment tag sanitization")
-    print("="*80)
-    
-    mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    if not mei_token:
-        return False
-    
     mei_headers = {"Authorization": f"Bearer {mei_token}"}
     
-    # 1. Create moment with various tag formats
-    tags_input = ["language", "#Grammar", "Studying_Hard", "  ", "meet@new"]
-    moment_data = {
-        "text": "Hi",
-        "tags": tags_input
-    }
+    resp = requests.get(f"{BASE_URL}/moments/{moment_id}", headers=mei_headers)
+    print(f"\n3. GET /api/moments/{moment_id} as Mei → {resp.status_code}")
     
-    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=mei_headers)
-    print(f"\n1. POST /api/moments with tags={tags_input} → {resp.status_code}")
+    if resp.status_code != 200:
+        print(f"   ❌ Expected 200, got {resp.status_code}")
+        return False
+    
+    moment = resp.json()
+    poll = moment.get("poll")
+    
+    # Check my_vote from Mei's POV
+    my_vote = poll.get("my_vote")
+    if my_vote != 2:
+        print(f"   ❌ my_vote (Mei's): expected 2, got {my_vote}")
+        return False
+    print(f"   ✅ my_vote = 2 (from Mei's view)")
+    
+    # Check total_votes
+    total_votes = poll.get("total_votes")
+    if total_votes != 2:
+        print(f"   ❌ total_votes: expected 2, got {total_votes}")
+        return False
+    print(f"   ✅ total_votes = 2 (both mei + diego on option 2)")
+    
+    print(f"\n✅ TEST D PASSED")
+    return True
+
+def test_e_vote_nonexistent_moment():
+    """E) Vote on non-existent moment"""
+    print("\n" + "="*80)
+    print("TEST E: Vote on non-existent moment")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Vote on non-existent moment
+    fake_id = "nonexistent-id-xxx"
+    vote_data = {"option_index": 0}
+    resp = requests.post(f"{BASE_URL}/moments/{fake_id}/vote", json=vote_data, headers=headers)
+    print(f"\n1. POST /api/moments/{fake_id}/vote → {resp.status_code}")
+    
+    if resp.status_code != 404:
+        print(f"   ❌ Expected 404, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"   ✅ Non-existent moment correctly returns 404")
+    
+    print(f"\n✅ TEST E PASSED")
+    return True
+
+def test_f_vote_moment_without_poll():
+    """F) Vote on moment without poll"""
+    print("\n" + "="*80)
+    print("TEST F: Vote on moment without poll")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Create moment without poll
+    moment_data = {"text": "just text"}
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments (no poll) → {resp.status_code}")
     
     if resp.status_code != 201:
         print(f"   ❌ Expected 201, got {resp.status_code}")
@@ -423,142 +396,172 @@ def test_d_moment_tag_sanitization():
     
     moment = resp.json()
     moment_id = moment.get("id")
+    print(f"   ✅ Moment created without poll, ID: {moment_id}")
     
-    # 2. Verify response.tags
-    tags_output = moment.get("tags")
-    expected_tags = ["language", "grammar", "studying_hard", "meetnew"]
+    # 2. Try to vote on it
+    vote_data = {"option_index": 0}
+    resp = requests.post(f"{BASE_URL}/moments/{moment_id}/vote", json=vote_data, headers=headers)
+    print(f"\n2. POST /api/moments/{moment_id}/vote → {resp.status_code}")
     
-    print(f"\n2. Verify tag sanitization:")
-    print(f"   Input:    {tags_input}")
-    print(f"   Output:   {tags_output}")
-    print(f"   Expected: {expected_tags}")
-    
-    if tags_output != expected_tags:
-        print(f"   ❌ Tags don't match expected output")
-        print(f"   Expected: {expected_tags}")
-        print(f"   Got:      {tags_output}")
-        return False
-    
-    print(f"   ✅ Tag sanitization correct:")
-    print(f"      - 'language' → 'language' (unchanged)")
-    print(f"      - '#Grammar' → 'grammar' (# stripped, lowercase)")
-    print(f"      - 'Studying_Hard' → 'studying_hard' (lowercase, underscore kept)")
-    print(f"      - '  ' → dropped (empty after strip)")
-    print(f"      - 'meet@new' → 'meetnew' (@ stripped)")
-    
-    # 3. Verify via GET /api/moments
-    resp = requests.get(f"{BASE_URL}/moments", headers=mei_headers)
-    print(f"\n3. GET /api/moments → {resp.status_code}")
-    
-    if resp.status_code != 200:
-        print(f"   ❌ Expected 200, got {resp.status_code}")
-        return False
-    
-    moments = resp.json()
-    found_moment = None
-    for m in moments:
-        if m.get("id") == moment_id:
-            found_moment = m
-            break
-    
-    if not found_moment:
-        print(f"   ❌ Could not find moment with id={moment_id}")
-        return False
-    
-    if found_moment.get("tags") != expected_tags:
-        print(f"   ❌ Tags in GET response don't match")
-        print(f"   Expected: {expected_tags}")
-        print(f"   Got:      {found_moment.get('tags')}")
-        return False
-    
-    print(f"   ✅ Tags persist correctly in GET response")
-    
-    print(f"\n✅ TEST D PASSED")
-    return True
-
-def test_e_tag_limit():
-    """E) Tag limit (9+ tags rejected)"""
-    print("\n" + "="*80)
-    print("TEST E: Tag limit (9+ tags rejected)")
-    print("="*80)
-    
-    mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    if not mei_token:
-        return False
-    
-    mei_headers = {"Authorization": f"Bearer {mei_token}"}
-    
-    # Try to create moment with 9 tags (should fail with 422)
-    tags_input = ["a", "b", "c", "d", "e", "f", "g", "h", "i"]
-    moment_data = {
-        "text": "too many",
-        "tags": tags_input
-    }
-    
-    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=mei_headers)
-    print(f"\n1. POST /api/moments with 9 tags → {resp.status_code}")
-    print(f"   Tags: {tags_input}")
-    
-    if resp.status_code != 422:
-        print(f"   ❌ Expected 422 (validation error), got {resp.status_code}")
+    if resp.status_code != 400:
+        print(f"   ❌ Expected 400, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
     
-    print(f"   ✅ 9 tags correctly rejected with 422 (Pydantic max_length validation)")
-    
-    print(f"\n✅ TEST E PASSED")
-    return True
-
-def test_f_announcement_length_limit():
-    """F) Announcement length limit"""
-    print("\n" + "="*80)
-    print("TEST F: Announcement length limit")
-    print("="*80)
-    
-    mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    if not mei_token:
+    # Check error message
+    error_data = resp.json()
+    detail = error_data.get("detail", "")
+    if "no poll" not in detail.lower():
+        print(f"   ❌ Expected error message about 'no poll', got: {detail}")
         return False
     
-    mei_headers = {"Authorization": f"Bearer {mei_token}"}
-    
-    # Try to create room with 400-char announcement (max is 300)
-    long_announcement = "a" * 400
-    room_data = {
-        "title": "Test Room",
-        "language": "en",
-        "announcement": long_announcement
-    }
-    
-    resp = requests.post(f"{BASE_URL}/rooms", json=room_data, headers=mei_headers)
-    print(f"\n1. POST /api/rooms with 400-char announcement → {resp.status_code}")
-    print(f"   Announcement length: {len(long_announcement)} chars (max is 300)")
-    
-    if resp.status_code != 422:
-        print(f"   ❌ Expected 422 (validation error), got {resp.status_code}")
-        print(f"   Response: {resp.text}")
-        return False
-    
-    print(f"   ✅ 400-char announcement correctly rejected with 422 (Pydantic max_length validation)")
+    print(f"   ✅ Voting on moment without poll returns 400 with detail: '{detail}'")
     
     print(f"\n✅ TEST F PASSED")
     return True
 
-def test_g_backward_compatibility():
-    """G) Backward compatibility"""
+def test_g_vote_out_of_range():
+    """G) Vote with out-of-range option"""
     print("\n" + "="*80)
-    print("TEST G: Backward compatibility")
+    print("TEST G: Vote with out-of-range option")
     print("="*80)
     
-    mei_token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
-    if not mei_token:
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
         return False
     
-    mei_headers = {"Authorization": f"Bearer {mei_token}"}
+    headers = {"Authorization": f"Bearer {token}"}
     
-    # 1. Create moment without tags
-    moment_data = {"text": "plain post"}
-    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=mei_headers)
-    print(f"\n1. POST /api/moments without tags → {resp.status_code}")
+    # 1. Create moment with poll
+    moment_data = {
+        "text": "Test poll",
+        "poll": {
+            "options": [
+                {"text": "A"},
+                {"text": "B"}
+            ]
+        }
+    }
+    
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments with 2-option poll → {resp.status_code}")
+    
+    if resp.status_code != 201:
+        print(f"   ❌ Expected 201, got {resp.status_code}")
+        return False
+    
+    moment = resp.json()
+    moment_id = moment.get("id")
+    print(f"   ✅ Moment created with 2 options")
+    
+    # 2. Try to vote with option_index=99
+    vote_data = {"option_index": 99}
+    resp = requests.post(f"{BASE_URL}/moments/{moment_id}/vote", json=vote_data, headers=headers)
+    print(f"\n2. POST /api/moments/{moment_id}/vote (option_index=99) → {resp.status_code}")
+    
+    if resp.status_code != 422:
+        print(f"   ❌ Expected 422 (Pydantic validation), got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"   ✅ Out-of-range option correctly returns 422 (Pydantic ge/le validation)")
+    
+    print(f"\n✅ TEST G PASSED")
+    return True
+
+def test_h_poll_with_only_1_option():
+    """H) Create moment with only 1 poll option (invalid)"""
+    print("\n" + "="*80)
+    print("TEST H: Create moment with only 1 poll option (invalid)")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Try to create moment with only 1 poll option
+    moment_data = {
+        "text": "bad poll",
+        "poll": {
+            "options": [
+                {"text": "only one"}
+            ]
+        }
+    }
+    
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments with 1 poll option → {resp.status_code}")
+    
+    if resp.status_code != 422:
+        print(f"   ❌ Expected 422 (Pydantic min_length validation), got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"   ✅ 1-option poll correctly rejected with 422 (Pydantic min_length=2)")
+    
+    print(f"\n✅ TEST H PASSED")
+    return True
+
+def test_i_poll_without_text_or_image():
+    """I) Create moment with poll but no text no image (poll counts as content)"""
+    print("\n" + "="*80)
+    print("TEST I: Create moment with poll but no text no image (poll counts as content)")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Create moment with poll only (no text, no image)
+    moment_data = {
+        "poll": {
+            "options": [
+                {"text": "A"},
+                {"text": "B"}
+            ]
+        }
+    }
+    
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments with poll only (no text, no image) → {resp.status_code}")
+    
+    if resp.status_code != 201:
+        print(f"   ❌ Expected 201 (poll counts as content), got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    moment = resp.json()
+    poll = moment.get("poll")
+    
+    if not poll:
+        print(f"   ❌ poll field is missing")
+        return False
+    
+    print(f"   ✅ Moment with poll only created successfully (poll counts as content)")
+    
+    print(f"\n✅ TEST I PASSED")
+    return True
+
+def test_j_backward_compat_no_poll():
+    """J) Backward compat - no poll field"""
+    print("\n" + "="*80)
+    print("TEST J: Backward compat - no poll field")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Create moment without poll
+    moment_data = {"text": "hi"}
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments (no poll field) → {resp.status_code}")
     
     if resp.status_code != 201:
         print(f"   ❌ Expected 201, got {resp.status_code}")
@@ -566,73 +569,135 @@ def test_g_backward_compatibility():
         return False
     
     moment = resp.json()
-    tags = moment.get("tags")
+    poll = moment.get("poll")
     
-    if tags != []:
-        print(f"   ❌ Expected tags=[], got {repr(tags)}")
+    if poll is not None:
+        print(f"   ❌ Expected poll=null, got {repr(poll)}")
         return False
     
-    print(f"   ✅ Moment without tags returns tags=[]")
+    print(f"   ✅ Moment without poll returns poll=null (backward compatible)")
     
-    # 2. Create room without announcement
-    room_data = {
-        "title": "No Announcement Room",
-        "language": "en"
+    print(f"\n✅ TEST J PASSED")
+    return True
+
+def test_k_get_moments_returns_poll():
+    """K) GET /api/moments returns poll in list"""
+    print("\n" + "="*80)
+    print("TEST K: GET /api/moments returns poll in list")
+    print("="*80)
+    
+    token, mei_user = login(MEI_EMAIL, MEI_PASSWORD)
+    if not token:
+        return False
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # 1. Create moment with poll
+    moment_data = {
+        "text": "List test poll",
+        "poll": {
+            "options": [
+                {"text": "Option A"},
+                {"text": "Option B"}
+            ]
+        }
     }
-    resp = requests.post(f"{BASE_URL}/rooms", json=room_data, headers=mei_headers)
-    print(f"\n2. POST /api/rooms without announcement → {resp.status_code}")
+    
+    resp = requests.post(f"{BASE_URL}/moments", json=moment_data, headers=headers)
+    print(f"\n1. POST /api/moments with poll → {resp.status_code}")
     
     if resp.status_code != 201:
         print(f"   ❌ Expected 201, got {resp.status_code}")
-        print(f"   Response: {resp.text}")
         return False
     
-    room = resp.json()
-    announcement = room.get("announcement")
+    moment = resp.json()
+    moment_id = moment.get("id")
+    print(f"   ✅ Moment created with poll, ID: {moment_id}")
     
-    if announcement is not None:
-        print(f"   ❌ Expected announcement=null, got {repr(announcement)}")
+    # 2. GET /api/moments and verify poll is in list
+    resp = requests.get(f"{BASE_URL}/moments", headers=headers)
+    print(f"\n2. GET /api/moments → {resp.status_code}")
+    
+    if resp.status_code != 200:
+        print(f"   ❌ Expected 200, got {resp.status_code}")
         return False
     
-    print(f"   ✅ Room without announcement returns announcement=null")
+    moments = resp.json()
     
-    print(f"\n✅ TEST G PASSED")
+    # Find the most recent moment (should be first in list)
+    if not moments:
+        print(f"   ❌ No moments found")
+        return False
+    
+    first_moment = moments[0]
+    
+    # Verify it has poll field
+    poll = first_moment.get("poll")
+    if not poll:
+        print(f"   ❌ First moment in list doesn't have poll field")
+        print(f"   First moment text: {first_moment.get('text')}")
+        return False
+    
+    # Verify poll structure
+    options = poll.get("options")
+    if not options or len(options) < 2:
+        print(f"   ❌ Poll options missing or invalid")
+        return False
+    
+    print(f"   ✅ GET /api/moments returns poll field correctly")
+    print(f"   ✅ First moment has poll with {len(options)} options")
+    print(f"   ✅ Poll structure: question={poll.get('question')}, total_votes={poll.get('total_votes')}, my_vote={poll.get('my_vote')}")
+    
+    print(f"\n✅ TEST K PASSED")
     return True
 
 def main():
     print("\n" + "="*80)
-    print("ROUND 16 BACKEND TESTING")
+    print("ROUND 17 BACKEND TESTING - POLL FEATURE ON MOMENTS")
     print("="*80)
     print(f"Backend URL: {BASE_URL}")
     print(f"Test users: {MEI_EMAIL}, {DIEGO_EMAIL}")
     
     results = {}
     
-    # Test A: Room create with announcement + background
-    room_id = test_a_room_create_with_announcement_background()
-    results["A"] = bool(room_id)
+    # Test A: Create moment with 3-option poll
+    moment_id = test_a_create_moment_with_poll()
+    results["A"] = bool(moment_id)
     
-    if room_id:
-        # Test B: Shared room card via moments
-        results["B"] = test_b_shared_room_card_via_moments(room_id)
+    if moment_id:
+        # Test B: Vote for option 0
+        results["B"] = test_b_vote_for_option_0(moment_id)
         
-        # Test C: Shared room card via chat
-        results["C"] = test_c_shared_room_card_via_chat(room_id)
+        # Test C: Revote for option 2
+        results["C"] = test_c_revote_for_option_2(moment_id)
+        
+        # Test D: Diego votes for option 2
+        results["D"] = test_d_diego_votes_option_2(moment_id)
     else:
         results["B"] = False
         results["C"] = False
+        results["D"] = False
     
-    # Test D: Moment tag sanitization
-    results["D"] = test_d_moment_tag_sanitization()
+    # Test E: Vote on non-existent moment
+    results["E"] = test_e_vote_nonexistent_moment()
     
-    # Test E: Tag limit
-    results["E"] = test_e_tag_limit()
+    # Test F: Vote on moment without poll
+    results["F"] = test_f_vote_moment_without_poll()
     
-    # Test F: Announcement length limit
-    results["F"] = test_f_announcement_length_limit()
+    # Test G: Vote with out-of-range option
+    results["G"] = test_g_vote_out_of_range()
     
-    # Test G: Backward compatibility
-    results["G"] = test_g_backward_compatibility()
+    # Test H: Create moment with only 1 poll option
+    results["H"] = test_h_poll_with_only_1_option()
+    
+    # Test I: Create moment with poll but no text no image
+    results["I"] = test_i_poll_without_text_or_image()
+    
+    # Test J: Backward compat - no poll field
+    results["J"] = test_j_backward_compat_no_poll()
+    
+    # Test K: GET /api/moments returns poll in list
+    results["K"] = test_k_get_moments_returns_poll()
     
     # Summary
     print("\n" + "="*80)

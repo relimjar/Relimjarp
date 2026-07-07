@@ -143,6 +143,18 @@ export interface RoomCardInfo {
   is_live: boolean;
 }
 
+export interface MomentPollOption {
+  text: string;
+  votes: number;
+}
+
+export interface MomentPoll {
+  question?: string | null;
+  options: MomentPollOption[];
+  total_votes: number;
+  my_vote: number | null;
+}
+
 export interface Moment {
   id: string;
   author: User | null;
@@ -150,6 +162,7 @@ export interface Moment {
   image_url?: string | null;
   room?: RoomCardInfo | null;
   tags?: string[];
+  poll?: MomentPoll | null;
   like_count: number;
   liked_by_me: boolean;
   likers?: User[];

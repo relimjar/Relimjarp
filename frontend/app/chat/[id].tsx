@@ -878,20 +878,7 @@ export default function ChatScreen() {
                     </Text>
                   )}
                   {isRoomShare ? (
-                    <View
-                      style={[
-                        styles.bubbleRow,
-                        mine ? styles.rowMine : styles.rowTheirs,
-                      ]}
-                    >
-                      {!mine && (
-                        <Avatar
-                          name={partner?.name || ""}
-                          url={partner?.avatar_url}
-                          size={32}
-                          flagCode={countryToCode(partner?.country)}
-                        />
-                      )}
+                    <View style={styles.roomShareRow}>
                       <Pressable
                         ref={setBubbleRef}
                         onLongPress={openReactions}
@@ -1695,9 +1682,17 @@ const makeStyles = (colors: ThemeColors) =>
     bubbleTimeMine: {
       color: "rgba(255,255,255,0.8)",
     },
+    roomShareRow: {
+      alignSelf: "stretch",
+      paddingHorizontal: spacing.md,
+      marginVertical: 4,
+    },
     roomShareBubble: {
-      maxWidth: "82%",
-      padding: 4,
+      // Full width — the RoomMomentCard is styled identically to the moments
+      // feed card, so it should occupy the same visual footprint whether it's
+      // seen in a chat message or a moment.
+      alignSelf: "stretch",
+      padding: 0,
       borderRadius: radius.md,
       gap: 4,
     },

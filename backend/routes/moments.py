@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from auth_utils import CurrentUser
 from db import comments_col, media_col, moments_col, notifications_col, rooms_col, users_col
-from models import CommentCreate, MomentCreate, apply_privacy, user_card
+from models import CommentCreate, MomentCreate, PollVoteBody, apply_privacy, user_card
 from routes.push import send_push
 from ws_manager import manager
 
@@ -138,6 +138,26 @@ async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -
             }
             for u in liker_docs
         ]
+    poll_public = None
+    if doc.get("poll"):
+        p = doc["poll"]
+        opts = []
+        total = 0
+        for opt in p.get("options", []):
+            voters = opt.get("voters") or []
+            total += len(voters)
+            opts.append({"text": opt.get("text"), "votes": len(voters)})
+        my_vote = None
+        for i, opt in enumerate(p.get("options", [])):
+            if viewer_id in (opt.get("voters") or []):
+                my_vote = i
+                break
+        poll_public = {
+            "question": p.get("question"),
+            "options": opts,
+            "total_votes": total,
+            "my_vote": my_vote,
+        }
     return {
         "id": doc["_id"],
         "author": _card_with_presence(author),
@@ -145,6 +165,7 @@ async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -
         "image_url": f"/api/media/{doc['image_id']}" if doc.get("image_id") else None,
         "room": await _room_card(doc.get("room_id")),
         "tags": doc.get("tags", []) or [],
+        "poll": poll_public,
         "like_count": len(likes),
         "liked_by_me": viewer_id in likes,
         "likers": likers,
@@ -176,6 +197,7 @@ async def list_moments(current_user: CurrentUser, user_id: str | None = None):
                 "image_id": 1,
                 "room_id": 1,
                 "tags": 1,
+                "poll": 1,
                 "likes": 1,
                 "comment_count": 1,
                 "created_at": 1,
@@ -217,8 +239,8 @@ async def user_moments_count(user_id: str, current_user: CurrentUser):
 async def create_moment(body: MomentCreate, current_user: CurrentUser):
     if current_user.get("restricted"):
         raise HTTPException(status_code=403, detail="Your account is restricted from posting.")
-    if not body.text.strip() and not body.image_base64:
-        raise HTTPException(status_code=400, detail="Add some text or a photo")
+    if not body.text.strip() and not body.image_base64 and not body.poll:
+        raise HTTPException(status_code=400, detail="Add some text, a photo or a poll")
     image_id = None
     if body.image_base64:
         try:
@@ -242,18 +264,68 @@ async def create_moment(body: MomentCreate, current_user: CurrentUser):
             if 1 <= len(t) <= 30 and t not in seen:
                 seen.add(t)
                 tags.append(t)
+    # Poll — persist question + options, each with an empty voter set. We use
+    # a set of user_ids per option so a user can vote once (change mind by
+    # revoting to another option).
+    poll_doc = None
+    if body.poll:
+        opts = [
+            {"text": o.text.strip(), "voters": []}
+            for o in body.poll.options
+            if o.text.strip()
+        ]
+        if len(opts) < 2:
+            raise HTTPException(status_code=400, detail="Poll needs at least 2 options")
+        poll_doc = {
+            "question": (body.poll.question or "").strip() or None,
+            "options": opts,
+        }
     doc = {
         "_id": str(uuid.uuid4()),
         "user_id": current_user["_id"],
         "text": body.text.strip(),
         "image_id": image_id,
         "tags": tags,
+        "poll": poll_doc,
         "likes": [],
         "comment_count": 0,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await moments_col.insert_one(doc)
     return await moment_public(doc, current_user["_id"])
+
+
+@router.post("/{moment_id}/vote")
+async def vote_on_poll(
+    moment_id: str,
+    body: PollVoteBody,
+    current_user: CurrentUser,
+):
+    """Cast (or switch) a vote on a moment's poll. One vote per user — voting
+    on a different option moves the vote instead of adding a second."""
+    doc = await moments_col.find_one({"_id": moment_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Moment not found")
+    poll = doc.get("poll")
+    if not poll:
+        raise HTTPException(status_code=400, detail="This moment has no poll")
+    options = poll.get("options", [])
+    if body.option_index >= len(options):
+        raise HTTPException(status_code=400, detail="Option index out of range")
+    uid = current_user["_id"]
+    for i, opt in enumerate(options):
+        voters = list(opt.get("voters") or [])
+        if uid in voters and i != body.option_index:
+            voters.remove(uid)
+            opt["voters"] = voters
+        if i == body.option_index and uid not in voters:
+            voters.append(uid)
+            opt["voters"] = voters
+    await moments_col.update_one(
+        {"_id": moment_id}, {"$set": {"poll.options": options}}
+    )
+    doc["poll"]["options"] = options
+    return await moment_public(doc, uid)
 
 
 @router.get("/{moment_id}")

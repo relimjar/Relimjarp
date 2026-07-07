@@ -60,11 +60,25 @@ class ConversationCreate(BaseModel):
     partner_id: str
 
 
+class PollOption(BaseModel):
+    text: str = Field(min_length=1, max_length=60)
+
+
+class PollCreate(BaseModel):
+    question: Optional[str] = Field(default=None, max_length=200)
+    options: list[PollOption] = Field(min_length=2, max_length=4)
+
+
 class MomentCreate(BaseModel):
     text: str = Field(default="", max_length=1000)
     image_base64: Optional[str] = None
     mime: str = "image/jpeg"
     tags: Optional[list[str]] = Field(default=None, max_length=8)
+    poll: Optional[PollCreate] = None
+
+
+class PollVoteBody(BaseModel):
+    option_index: int = Field(ge=0, le=3)
 
 
 class CommentCreate(BaseModel):

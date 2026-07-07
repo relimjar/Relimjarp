@@ -1691,3 +1691,77 @@ agent_communication:
       message: "Round 16 backend changes: (1) Moments/chats room_card now returns full voice-tab shape (host + members_preview + background + created_at + topic + is_private). (2) POST /moments accepts tags[]. (3) POST /rooms accepts announcement. Please test: (A) Login mei, create room title:'Card Match Test', language:'en', topic:'General', background:2, announcement:'Please be kind ✨' → 201. Verify response.announcement='Please be kind ✨' and response.background=2. (B) Diego shares that room to moments: POST /rooms/{room_id}/share-to-moments {text:'Come join'} → 201. GET /moments → find that moment. Verify moment.room contains: host (mei's card with name, avatar_url), members_preview (list, contains diego + mei entries), member_count>=1, background=2, topic='General', is_private=false, language='en', created_at (ISO string). (C) Send room in chat: POST /chats/{cid}/messages {room_id} → verify message.room has same full shape. (D) POST /moments {text:'Hi', tags:['language', '#Grammar', 'Studying_Hard', '  ', 'meet@new']} → 201. Verify moment.tags == ['language','grammar','studying_hard','meetnew'] (lowercase, stripped #, kept alnum+underscore only, empty dropped). (E) POST /moments with 9+ tags → 422. (F) POST /rooms with announcement='a'*400 → 422 (exceeds 300 max). Don't test frontend."
     - agent: "testing"
       message: "✅ ROUND 16 BACKEND TESTING COMPLETED - ALL 7 TESTS PASSED (6/7 initially, 1 bug fixed). Test results: (A) ✅ Room create with announcement + background: POST /api/rooms returns 201, announcement='Please be kind ✨', background=2, host object complete. (B) ✅ Shared room card via moments: Diego joined room, shared to moments. GET /api/moments shows moment with room field containing all required fields (id, title, is_live=true, background=2, topic, is_private=false, language, created_at, member_count=2, host with id/name/avatar_url/country, members_preview with 2 members). (C) ✅ Shared room card via chat: POST /api/chats/{cid}/messages with room_id creates type='room' message. GET messages shows room field with identical shape to moments. (D) ✅ Moment tag sanitization: POST /api/moments with tags=['language','#Grammar','Studying_Hard','  ','meet@new'] returns correct sanitized tags=['language','grammar','studying_hard','meetnew']. BUG FOUND & FIXED: GET /api/moments was returning tags=[] because projection in list_moments was missing 'tags':1 field. Added field to line 175 in /app/backend/routes/moments.py, restarted backend, re-tested successfully. (E) ✅ Tag limit: POST /api/moments with 9 tags correctly rejected with 422. (F) ✅ Announcement length limit: POST /api/rooms with 400-char announcement correctly rejected with 422. (G) ✅ Backward compatibility: Moments without tags return tags=[], rooms without announcement return announcement=null. ONE BUG FIXED: Missing 'tags' field in moments list projection. All features working correctly after fix. Ready for main agent to summarize and finish."
+
+## Test Run — Moment Compose Redesign + Poll + Chat card equal size (Round 17)
+user_problem_statement: (1) Chat share room card should be same size as moments room card (full width). (2) Moment compose page redesigned — text first, tags hidden in a bottom sheet (list form) available via tag icon, photo added via bottom action bar (+ icon), poll creation and other functionality added, much prettier design.
+
+backend:
+  - task: "POST /api/moments accepts poll (question + 2-4 options)"
+    implemented: true
+    working: true
+    file: "backend/routes/moments.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Optional poll: {question, options[{text}]}. 2-4 options required. Stored on moment; returned in moment_public as {question, options:[{text,votes}], total_votes, my_vote}. Rejects < 2 options with 400."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (6/6 tests passed): (A) POST /api/moments with 3-option poll (Coffee/Tea/Water) returns 201 with poll.options.length=3, each option has text+votes=0, total_votes=0, my_vote=null ✅ (H) Create moment with only 1 poll option correctly rejected with 422 (Pydantic min_length=2) ✅ (I) Create moment with poll only (no text, no image) returns 201 - poll counts as content ✅ (J) Backward compat: POST /api/moments without poll returns poll=null ✅ (K) GET /api/moments returns poll field correctly in list, first moment has poll with correct structure (question, options, total_votes, my_vote) ✅ (G) Vote with option_index=99 correctly rejected with 422 (Pydantic ge/le validation) ✅. Poll creation working perfectly with all validation rules enforced."
+  - task: "POST /api/moments/{id}/vote — one vote per user, revoting moves the vote"
+    implemented: true
+    working: true
+    file: "backend/routes/moments.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Body {option_index: 0-3}. Adds voter to selected option and removes from any prior option (one vote per user). Non-existent moment 404. Moment without poll 400. Out-of-range option 400. Returns updated moment_public."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (5/5 tests passed): (B) Mei votes for option 0 (Coffee) returns 200 with options[0].votes=1, options[1].votes=0, options[2].votes=0, my_vote=0, total_votes=1 ✅ (C) Mei revotes for option 2 (Water) returns 200 with options[0].votes=0 (vote moved), options[2].votes=1, my_vote=2, total_votes=1 (still 1, not 2 - vote moved, not added) ✅ (D) Diego votes for option 2 returns 200 with options[2].votes=2, total_votes=2, my_vote=2 (from Diego's POV). GET as Mei confirms my_vote=2, total_votes=2 (both users on option 2) ✅ (E) Vote on non-existent moment correctly returns 404 ✅ (F) Vote on moment without poll correctly returns 400 with detail 'This moment has no poll' ✅. One vote per user logic working perfectly, revoting moves vote instead of adding, vote counts accurate across multiple users."
+
+frontend:
+  - task: "Moment compose page — full redesign (text-first, tags-in-sheet, poll, action rail)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/moment-compose.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Verified via screenshots: header (avatar+name+Post), big autofocused text area first, bottom action rail (Photo/Poll/Tags/counter). Photo added via + icon (bottom bar). Tags open in a bottom sheet with list-style rows (hidden by default). Poll block appears inline with 2-4 option inputs + Add option. testIDs: compose-action-photo, compose-action-poll, compose-action-tags, compose-tag-suggest-{tag}, compose-tag-selected-{tag}, compose-tag-sheet-done, compose-poll-option-{i}, compose-poll-add-option-btn, compose-poll-remove-btn, compose-post-btn."
+  - task: "Moments feed: render poll with progress bars + tag chips"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/moments.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Poll block renders after image/room area. Each option is a tap-to-vote row with animated fill bar showing %. Own vote gets brand border + brandTertiary fill. Total votes line below. Tags appear as pill chips at the bottom of the card. Optimistic voting via voteOnPoll."
+  - task: "Chat room-share card: full width (matches moments card exactly)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/chat/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed bubbleRow flex constraints for isRoomShare messages. New roomShareRow style uses alignSelf:stretch + horizontal padding so the RoomMomentCard renders at the same width as it does in the Moments feed."
+
+agent_communication:
+    - agent: "main"
+      message: "Round 17 backend: POST /api/moments accepts poll; POST /api/moments/{id}/vote. Please test: (A) Login mei, POST /api/moments {text:'Favorite drink?', poll:{options:[{text:'Coffee'},{text:'Tea'},{text:'Water'}]}} → 201. Response.poll.options.length=3, each has text+votes=0, total_votes=0, my_vote=null. (B) POST /api/moments/{id}/vote {option_index:0} (mei votes for Coffee) → 200. Response.poll.options[0].votes=1, my_vote=0, total_votes=1. (C) mei revotes {option_index:2} → 200. options[0].votes=0, options[2].votes=1, my_vote=2, total_votes=1 (still one vote). (D) Diego logs in, votes {option_index:2} → 200. options[2].votes=2, total_votes=2, my_vote=2 (from diego's POV). GET as mei → my_vote still 2 for mei, total_votes=2. (E) Vote on non-existent moment → 404. (F) Vote on moment without poll → 400. (G) option_index=99 → 422. (H) Create moment with only 1 poll option → 422 (Pydantic min_length). (I) Create moment with poll AND no text AND no image → 201 (poll counts as content). (J) Backward compat: POST /api/moments {text:'x'} (no poll) → 201, response.poll=null. Don't test frontend."
+    - agent: "testing"
+      message: "✅ ROUND 17 BACKEND TESTING COMPLETED - ALL 11 TESTS PASSED (11/11). Poll feature on Moments fully functional. Test results: (A) ✅ Create moment with 3-option poll (Coffee/Tea/Water) returns 201 with correct poll structure (options.length=3, each option has text+votes=0, total_votes=0, my_vote=null). (B) ✅ Vote for option 0 (Coffee) returns 200 with options[0].votes=1, my_vote=0, total_votes=1. (C) ✅ Revote for option 2 (Water) returns 200 with options[0].votes=0 (vote moved from Coffee), options[2].votes=1, my_vote=2, total_votes=1 (still 1, not 2 - one vote per user logic working). (D) ✅ Diego votes for option 2 returns 200 with options[2].votes=2, total_votes=2. GET as Mei confirms my_vote=2, total_votes=2 (both users on option 2). (E) ✅ Vote on non-existent moment returns 404. (F) ✅ Vote on moment without poll returns 400 with detail 'This moment has no poll'. (G) ✅ Vote with option_index=99 returns 422 (Pydantic ge/le validation). (H) ✅ Create moment with only 1 poll option returns 422 (Pydantic min_length=2). (I) ✅ Create moment with poll only (no text, no image) returns 201 (poll counts as content). (J) ✅ Backward compat: moment without poll returns poll=null. (K) ✅ GET /api/moments returns poll field correctly in list. NO CRITICAL ISSUES FOUND. All poll creation, voting, revoting, validation, and backward compatibility working perfectly. Ready for main agent to summarize and finish."

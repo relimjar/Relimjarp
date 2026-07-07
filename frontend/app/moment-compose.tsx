@@ -2,11 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -17,19 +19,31 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { Avatar } from "@/src/components/Avatar";
 import { BackButton } from "@/src/components/BackButton";
+import { countryToCode } from "@/src/constants/countries";
+import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
 import { api } from "@/src/utils/api";
 
 /**
- * Full-page moment composer. Opened via router.push('/moment-compose').
- * Order matches the user's request: photo picker area first, then a big
- * text area, then tag suggestions + a free-text "add your own" input.
+ * Full-page moment composer.
+ *
+ * Layout — inspired by Twitter/Instagram post composers:
+ *   • Header (avatar · name · Post button)
+ *   • Big autofocused TextInput as the primary surface — the user starts by
+ *     writing straight away.
+ *   • Attachment previews slide in below the text (photo · poll · selected
+ *     tag chips) as the user adds them.
+ *   • Bottom action rail — Photo (+), Poll, Tags, Emoji, Location, GIF —
+ *     tapping each opens the relevant surface.
+ *
+ * Tags remain hidden by default in a bottom-sheet picker; a chip row appears
+ * only after the user has picked at least one, matching the request that
+ * "tags stay hidden as a list, available on demand".
  */
 
-// Curated starter tag suggestions — the community picks up on these and users
-// still get a custom-tag input to invent their own.
 const SUGGESTED_TAGS = [
   "language",
   "practice",
@@ -48,12 +62,17 @@ const SUGGESTED_TAGS = [
 export default function MomentComposeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState<{ base64: string; uri: string; mime: string } | null>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
+  const [tagSheetOpen, setTagSheetOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [posting, setPosting] = useState(false);
+  const focusHint = useRef(new Animated.Value(0)).current;
 
   const pickPhoto = async () => {
     if (posting) return;
@@ -93,18 +112,40 @@ export default function MomentComposeScreen() {
     const raw = customTag.trim().replace(/^#/, "").toLowerCase();
     const clean = raw.replace(/[^a-z0-9_]/g, "");
     if (!clean) return;
-    if (tags.includes(clean) || tags.length >= 8) {
-      setCustomTag("");
-      return;
+    if (!tags.includes(clean) && tags.length < 8) {
+      setTags((prev) => [...prev, clean]);
     }
-    setTags((prev) => [...prev, clean]);
     setCustomTag("");
+  };
+
+  const setPollOption = (i: number, value: string) => {
+    setPollOptions((prev) => prev.map((o, idx) => (idx === i ? value : o)));
+  };
+
+  const addPollOption = () => {
+    if (pollOptions.length >= 4) return;
+    setPollOptions((prev) => [...prev, ""]);
+  };
+
+  const removePollOption = (i: number) => {
+    if (pollOptions.length <= 2) return;
+    setPollOptions((prev) => prev.filter((_, idx) => idx !== i));
+  };
+
+  const removePoll = () => {
+    setPollOpen(false);
+    setPollOptions(["", ""]);
   };
 
   const publish = async () => {
     if (posting) return;
-    if (!text.trim() && !photo) {
-      Alert.alert("Nothing to post", "Add a photo, some text, or both.");
+    const validPollOptions = pollOptions.map((o) => o.trim()).filter(Boolean);
+    if (!text.trim() && !photo && !pollOpen) {
+      Alert.alert("Nothing to post", "Add some text, a photo, or a poll.");
+      return;
+    }
+    if (pollOpen && validPollOptions.length < 2) {
+      Alert.alert("Poll", "Please fill in at least 2 poll options.");
       return;
     }
     setPosting(true);
@@ -114,6 +155,12 @@ export default function MomentComposeScreen() {
         image_base64: photo?.base64,
         mime: photo?.mime,
         tags,
+        poll: pollOpen
+          ? {
+              question: text.trim() || null,
+              options: validPollOptions.map((t) => ({ text: t })),
+            }
+          : null,
       });
       router.back();
     } catch (e) {
@@ -123,7 +170,8 @@ export default function MomentComposeScreen() {
     }
   };
 
-  const canPost = (text.trim().length > 0 || !!photo) && !posting;
+  const canPost =
+    (text.trim().length > 0 || !!photo || pollOpen) && !posting;
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -131,6 +179,7 @@ export default function MomentComposeScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
       >
+        {/* Header */}
         <View style={styles.header}>
           <BackButton testID="compose-back-btn" />
           <Text style={styles.title}>New Moment</Text>
@@ -138,7 +187,7 @@ export default function MomentComposeScreen() {
             testID="compose-post-btn"
             onPress={publish}
             disabled={!canPost}
-            style={[styles.postBtn, !canPost && { opacity: 0.5 }]}
+            style={[styles.postBtn, !canPost && { opacity: 0.4 }]}
           >
             {posting ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -153,10 +202,44 @@ export default function MomentComposeScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Photo section */}
-          {photo ? (
+          {/* Author strip */}
+          <View style={styles.authorRow}>
+            <Avatar
+              name={user?.name || ""}
+              url={user?.avatar_url}
+              size={40}
+              flagCode={countryToCode(user?.country)}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.authorName}>{user?.name || "You"}</Text>
+              <View style={styles.audiencePill}>
+                <Ionicons name="earth" size={11} color={colors.brand} />
+                <Text style={styles.audienceText}>Public — everyone can see</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Main text */}
+          <TextInput
+            testID="compose-text-input"
+            style={styles.textInput}
+            placeholder="What's on your mind? Share a story, ask a question, celebrate a win…"
+            placeholderTextColor={colors.onSurfaceSecondary}
+            value={text}
+            onChangeText={setText}
+            multiline
+            maxLength={1000}
+            autoFocus
+          />
+
+          {/* Photo preview */}
+          {photo && (
             <View style={styles.photoBox}>
-              <Image source={{ uri: photo.uri }} style={styles.photo} contentFit="cover" />
+              <Image
+                source={{ uri: photo.uri }}
+                style={styles.photo}
+                contentFit="cover"
+              />
               <Pressable
                 testID="compose-photo-remove-btn"
                 style={styles.photoRemove}
@@ -165,72 +248,165 @@ export default function MomentComposeScreen() {
                 <Ionicons name="close" size={16} color="#FFF" />
               </Pressable>
             </View>
-          ) : (
-            <Pressable
-              testID="compose-photo-add-btn"
-              onPress={pickPhoto}
-              style={styles.photoPlaceholder}
-            >
-              <Ionicons name="image-outline" size={30} color={colors.brand} />
-              <Text style={styles.photoPlaceholderText}>Add a photo</Text>
-              <Text style={styles.photoPlaceholderHint}>Optional — tap to attach</Text>
-            </Pressable>
           )}
 
-          {/* Text section */}
-          <TextInput
-            testID="compose-text-input"
-            style={styles.textInput}
-            placeholder="Share what's on your mind — ask a language question, tell a story, celebrate a win…"
-            placeholderTextColor={colors.onSurfaceSecondary}
-            value={text}
-            onChangeText={setText}
-            multiline
-            maxLength={1000}
-            autoFocus
-          />
-          <Text style={styles.counter}>{text.length}/1000</Text>
-
-          {/* Tags section */}
-          <View style={styles.tagSection}>
-            <View style={styles.tagHeader}>
-              <Ionicons name="pricetag" size={15} color={colors.onSurfaceSecondary} />
-              <Text style={styles.tagLabel}>Tags</Text>
-              <Text style={styles.tagCounter}>{tags.length}/8</Text>
-            </View>
-
-            {tags.length > 0 && (
-              <View style={styles.chipRow}>
-                {tags.map((t) => (
-                  <Pressable
-                    key={t}
-                    testID={`compose-tag-selected-${t}`}
-                    onPress={() => toggleTag(t)}
-                    style={styles.chipSelected}
-                  >
-                    <Text style={styles.chipSelectedText}>#{t}</Text>
-                    <Ionicons name="close" size={13} color="#FFFFFF" />
-                  </Pressable>
-                ))}
+          {/* Poll editor */}
+          {pollOpen && (
+            <View style={styles.pollBox}>
+              <View style={styles.pollHeader}>
+                <Ionicons name="stats-chart" size={16} color={colors.brand} />
+                <Text style={styles.pollHeaderText}>Poll</Text>
+                <Pressable
+                  testID="compose-poll-remove-btn"
+                  onPress={removePoll}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close" size={18} color={colors.onSurfaceSecondary} />
+                </Pressable>
               </View>
-            )}
+              {pollOptions.map((opt, i) => (
+                <View key={i} style={styles.pollOptionRow}>
+                  <View style={styles.pollOptionInputWrap}>
+                    <Text style={styles.pollOptionIndex}>{i + 1}</Text>
+                    <TextInput
+                      testID={`compose-poll-option-${i}`}
+                      style={styles.pollOptionInput}
+                      placeholder={`Option ${i + 1}`}
+                      placeholderTextColor={colors.onSurfaceSecondary}
+                      value={opt}
+                      onChangeText={(v) => setPollOption(i, v)}
+                      maxLength={60}
+                    />
+                  </View>
+                  {pollOptions.length > 2 && (
+                    <Pressable
+                      testID={`compose-poll-remove-option-${i}`}
+                      onPress={() => removePollOption(i)}
+                      hitSlop={8}
+                    >
+                      <Ionicons
+                        name="close-circle"
+                        size={20}
+                        color={colors.onSurfaceSecondary}
+                      />
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+              {pollOptions.length < 4 && (
+                <Pressable
+                  testID="compose-poll-add-option-btn"
+                  onPress={addPollOption}
+                  style={styles.pollAddBtn}
+                >
+                  <Ionicons name="add-circle" size={18} color={colors.brand} />
+                  <Text style={styles.pollAddText}>Add option</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
-            <Text style={styles.suggestLabel}>Suggested</Text>
+          {/* Selected tag chips */}
+          {tags.length > 0 && (
             <View style={styles.chipRow}>
-              {SUGGESTED_TAGS.filter((t) => !tags.includes(t)).map((t) => (
+              {tags.map((t) => (
                 <Pressable
                   key={t}
-                  testID={`compose-tag-suggest-${t}`}
+                  testID={`compose-tag-selected-${t}`}
                   onPress={() => toggleTag(t)}
-                  style={styles.chipSuggest}
+                  style={styles.chipSelected}
                 >
-                  <Text style={styles.chipSuggestText}>#{t}</Text>
+                  <Text style={styles.chipSelectedText}>#{t}</Text>
+                  <Ionicons name="close" size={12} color="#FFFFFF" />
                 </Pressable>
               ))}
             </View>
+          )}
+        </ScrollView>
 
-            <Text style={styles.suggestLabel}>Add your own</Text>
-            <View style={styles.customTagRow}>
+        {/* Bottom action rail */}
+        <View style={styles.actionRail}>
+          <ActionBtn
+            testID="compose-action-photo"
+            icon="image"
+            label="Photo"
+            active={!!photo}
+            onPress={pickPhoto}
+            color={colors.brand}
+          />
+          <ActionBtn
+            testID="compose-action-poll"
+            icon="stats-chart"
+            label="Poll"
+            active={pollOpen}
+            onPress={() => setPollOpen((v) => !v)}
+            color="#F59E0B"
+          />
+          <ActionBtn
+            testID="compose-action-tags"
+            icon="pricetag"
+            label={tags.length > 0 ? `Tags · ${tags.length}` : "Tags"}
+            active={tags.length > 0}
+            onPress={() => setTagSheetOpen(true)}
+            color="#EC4899"
+          />
+          <View style={{ flex: 1 }} />
+          <Text style={styles.counter}>{text.length}/1000</Text>
+        </View>
+      </KeyboardAvoidingView>
+
+      {/* Tag picker bottom sheet */}
+      <Modal
+        visible={tagSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setTagSheetOpen(false)}
+      >
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => setTagSheetOpen(false)}
+        >
+          <Pressable
+            style={styles.sheet}
+            onPress={(e) => e.stopPropagation?.()}
+          >
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Add tags</Text>
+              <Text style={styles.tagCounter}>{tags.length}/8</Text>
+            </View>
+
+            <Text style={styles.sheetSectionLabel}>Suggested</Text>
+            <ScrollView
+              style={{ maxHeight: 360 }}
+              contentContainerStyle={{ paddingBottom: spacing.md }}
+              showsVerticalScrollIndicator={false}
+            >
+              {SUGGESTED_TAGS.map((t) => {
+                const selected = tags.includes(t);
+                return (
+                  <Pressable
+                    key={t}
+                    testID={`compose-tag-suggest-${t}`}
+                    onPress={() => toggleTag(t)}
+                    style={styles.tagListRow}
+                  >
+                    <Text style={styles.tagListText}>#{t}</Text>
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={22} color={colors.brand} />
+                    ) : (
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={22}
+                        color={colors.onSurfaceSecondary}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <View style={styles.customRow}>
               <View style={styles.customInputWrap}>
                 <Text style={styles.hashPrefix}>#</Text>
                 <TextInput
@@ -238,7 +414,7 @@ export default function MomentComposeScreen() {
                   style={styles.customInput}
                   value={customTag}
                   onChangeText={setCustomTag}
-                  placeholder="mytag"
+                  placeholder="add your own"
                   placeholderTextColor={colors.onSurfaceSecondary}
                   autoCapitalize="none"
                   onSubmitEditing={addCustomTag}
@@ -251,19 +427,80 @@ export default function MomentComposeScreen() {
                 onPress={addCustomTag}
                 disabled={!customTag.trim() || tags.length >= 8}
                 style={[
-                  styles.addBtn,
+                  styles.addTagBtn,
                   (!customTag.trim() || tags.length >= 8) && { opacity: 0.4 },
                 ]}
               >
-                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Ionicons name="add" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+            <Pressable
+              testID="compose-tag-sheet-done"
+              onPress={() => setTagSheetOpen(false)}
+              style={styles.sheetDoneBtn}
+            >
+              <Text style={styles.sheetDoneText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const ActionBtn = ({
+  icon,
+  label,
+  onPress,
+  active,
+  color,
+  testID,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+  color: string;
+  testID: string;
+}) => {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      style={({ pressed }) => [
+        railStyles.btn,
+        active && { backgroundColor: color + "22" },
+        pressed && { opacity: 0.7 },
+      ]}
+      hitSlop={4}
+    >
+      <Ionicons name={icon} size={20} color={active ? color : colors.onSurface} />
+      <Text
+        style={[
+          railStyles.label,
+          { color: active ? color : colors.onSurface },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+};
+
+const railStyles = StyleSheet.create({
+  btn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  label: { fontFamily: fonts.textBold, fontSize: 12 },
+});
 
 const makeStyles = (colors: ThemeColors) =>
   StyleSheet.create({
@@ -283,11 +520,51 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: radius.pill,
       paddingHorizontal: spacing.lg,
       paddingVertical: 8,
-      minWidth: 68,
+      minWidth: 72,
       alignItems: "center",
     },
     postBtnText: { fontFamily: fonts.textBold, fontSize: 14, color: "#FFFFFF" },
-    body: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl * 2 },
+    body: {
+      padding: spacing.lg,
+      paddingBottom: spacing.xxl,
+      gap: spacing.md,
+    },
+    authorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+    },
+    authorName: {
+      fontFamily: fonts.textBold,
+      fontSize: 15,
+      color: colors.onSurface,
+    },
+    audiencePill: {
+      flexDirection: "row",
+      alignSelf: "flex-start",
+      alignItems: "center",
+      gap: 4,
+      backgroundColor: colors.brandTertiary,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      marginTop: 3,
+    },
+    audienceText: {
+      fontFamily: fonts.textBold,
+      fontSize: 11,
+      color: colors.onBrandTertiary,
+    },
+    textInput: {
+      minHeight: 130,
+      fontFamily: fonts.textSemi,
+      fontSize: 17,
+      color: colors.onSurface,
+      lineHeight: 24,
+      textAlignVertical: "top",
+      paddingTop: spacing.sm,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
     photoBox: {
       borderRadius: radius.md,
       overflow: "hidden",
@@ -306,52 +583,18 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    photoPlaceholder: {
+    pollBox: {
       backgroundColor: colors.surfaceSecondary,
       borderRadius: radius.md,
-      borderWidth: 2,
-      borderColor: colors.border,
-      borderStyle: "dashed",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: spacing.xxl,
-      gap: 4,
-    },
-    photoPlaceholderText: {
-      fontFamily: fonts.textBold,
-      fontSize: 14,
-      color: colors.onSurface,
-    },
-    photoPlaceholderHint: {
-      fontFamily: fonts.textSemi,
-      fontSize: 12,
-      color: colors.onSurfaceSecondary,
-    },
-    textInput: {
-      minHeight: 120,
-      fontFamily: fonts.textSemi,
-      fontSize: 16,
-      color: colors.onSurface,
-      lineHeight: 22,
-      textAlignVertical: "top",
-      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
-    },
-    counter: {
-      alignSelf: "flex-end",
-      fontFamily: fonts.textSemi,
-      fontSize: 11,
-      color: colors.onSurfaceSecondary,
-    },
-    tagSection: {
-      marginTop: spacing.md,
+      padding: spacing.md,
       gap: spacing.sm,
     },
-    tagHeader: {
+    pollHeader: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
     },
-    tagLabel: {
+    pollHeaderText: {
       fontFamily: fonts.textBold,
       fontSize: 13,
       color: colors.onSurface,
@@ -359,15 +602,52 @@ const makeStyles = (colors: ThemeColors) =>
       letterSpacing: 0.5,
       flex: 1,
     },
-    tagCounter: {
-      fontFamily: fonts.textSemi,
+    pollOptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    pollOptionInputWrap: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: radius.pill,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      gap: 8,
+    },
+    pollOptionIndex: {
+      fontFamily: fonts.textBold,
       fontSize: 12,
-      color: colors.onSurfaceSecondary,
+      color: colors.brand,
+      width: 16,
+    },
+    pollOptionInput: {
+      flex: 1,
+      fontFamily: fonts.textSemi,
+      fontSize: 14,
+      color: colors.onSurface,
+      padding: 0,
+      ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
+    },
+    pollAddBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      alignSelf: "flex-start",
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+    },
+    pollAddText: {
+      fontFamily: fonts.textBold,
+      fontSize: 13,
+      color: colors.brand,
     },
     chipRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 8,
+      gap: 6,
     },
     chipSelected: {
       flexDirection: "row",
@@ -383,30 +663,84 @@ const makeStyles = (colors: ThemeColors) =>
       fontSize: 12,
       color: "#FFFFFF",
     },
-    chipSuggest: {
-      backgroundColor: colors.surfaceSecondary,
-      borderRadius: radius.pill,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
+    actionRail: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
     },
-    chipSuggestText: {
-      fontFamily: fonts.textBold,
-      fontSize: 12,
+    counter: {
+      fontFamily: fonts.textSemi,
+      fontSize: 11,
+      color: colors.onSurfaceSecondary,
+      paddingHorizontal: 6,
+    },
+    sheetBackdrop: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.45)",
+    },
+    sheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      paddingHorizontal: spacing.lg,
+      paddingBottom: spacing.xl,
+      paddingTop: spacing.sm,
+      gap: spacing.sm,
+    },
+    sheetHandle: {
+      alignSelf: "center",
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.borderStrong,
+      marginBottom: spacing.sm,
+    },
+    sheetHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    sheetTitle: {
+      fontFamily: fonts.displaySemi,
+      fontSize: 17,
       color: colors.onSurface,
     },
-    suggestLabel: {
+    tagCounter: {
+      fontFamily: fonts.textSemi,
+      fontSize: 12,
+      color: colors.onSurfaceSecondary,
+    },
+    sheetSectionLabel: {
       fontFamily: fonts.textBold,
       fontSize: 11,
       color: colors.onSurfaceSecondary,
       textTransform: "uppercase",
-      letterSpacing: 0.4,
-      marginTop: spacing.sm,
+      letterSpacing: 0.5,
     },
-    customTagRow: {
+    tagListRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    tagListText: {
+      fontFamily: fonts.textBold,
+      fontSize: 15,
+      color: colors.onSurface,
+    },
+    customRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      marginTop: 2,
+      marginTop: 6,
     },
     customInputWrap: {
       flex: 1,
@@ -415,11 +749,11 @@ const makeStyles = (colors: ThemeColors) =>
       backgroundColor: colors.surfaceSecondary,
       borderRadius: radius.pill,
       paddingHorizontal: 14,
-      paddingVertical: 8,
+      paddingVertical: 10,
     },
     hashPrefix: {
       fontFamily: fonts.textBold,
-      fontSize: 15,
+      fontSize: 16,
       color: colors.brand,
       marginRight: 4,
     },
@@ -431,12 +765,25 @@ const makeStyles = (colors: ThemeColors) =>
       padding: 0,
       ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}),
     },
-    addBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+    addTagBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       backgroundColor: colors.brand,
       alignItems: "center",
       justifyContent: "center",
+    },
+    sheetDoneBtn: {
+      alignSelf: "stretch",
+      backgroundColor: colors.brand,
+      borderRadius: radius.pill,
+      paddingVertical: 12,
+      alignItems: "center",
+      marginTop: 6,
+    },
+    sheetDoneText: {
+      fontFamily: fonts.textBold,
+      fontSize: 15,
+      color: "#FFFFFF",
     },
   });
