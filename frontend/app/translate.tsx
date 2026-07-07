@@ -13,6 +13,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BackButton } from "@/src/components/BackButton";
 import { LANGUAGES } from "@/src/constants/languages";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
@@ -54,14 +55,7 @@ export default function Translate() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]} testID="translate-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="translate-back-btn"
-          style={styles.headerIconBtn}
-          onPress={() => router.back()}
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={26} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="translate-back-btn" />
         <Text style={styles.headerTitle}>AI Translation</Text>
         <View style={styles.headerIconBtn} />
       </View>

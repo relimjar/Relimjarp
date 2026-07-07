@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API test for Round 13: Birthday → Derived Age Feature
-Tests PUT /api/users/me with birthday field that derives age automatically.
+Backend API test for Round 14: Guest Authentication Feature
+Tests POST /api/auth/guest endpoint for one-tap guest login.
 """
 
 import requests
@@ -11,355 +11,384 @@ from datetime import datetime
 # Backend URL - using localhost since we're testing from inside the container
 BASE_URL = "http://localhost:8001/api"
 
-def register_user(email, password="Password123!", name="DOB Tester"):
-    """Register a fresh user and return token + user data."""
-    url = f"{BASE_URL}/auth/register"
-    payload = {
-        "email": email,
-        "password": password,
-        "name": name
-    }
-    resp = requests.post(url, json=payload)
+def test_basic_guest_login():
+    """Test 1: Basic guest login with empty body"""
+    print("\n" + "="*80)
+    print("TEST 1: Basic guest login - POST /api/auth/guest with empty body")
+    print("="*80)
+    
+    url = f"{BASE_URL}/auth/guest"
+    resp = requests.post(url, json={})
+    
     if resp.status_code != 201:
-        print(f"❌ Registration failed for {email}: {resp.status_code} {resp.text}")
-        return None, None
-    data = resp.json()
-    return data.get("token"), data.get("user")
-
-def update_profile(token, updates):
-    """PUT /api/users/me with given updates."""
-    url = f"{BASE_URL}/users/me"
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.put(url, json=updates, headers=headers)
-    return resp
-
-def get_me(token):
-    """GET /api/auth/me to verify current user state."""
-    url = f"{BASE_URL}/auth/me"
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers)
-    return resp
-
-def test_scenario_1_happy_path():
-    """Test 1: Happy path — birthday derives age"""
-    print("\n" + "="*80)
-    print("TEST 1: Happy path — birthday derives age")
-    print("="*80)
-    
-    # Register fresh user
-    email = f"dob_test_happy_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 1 FAILED: Could not register user")
-        return False
-    print(f"✅ Registered user: {email}")
-    
-    # Update with birthday and other fields
-    updates = {
-        "native_language": "en",
-        "learning_language": "es",
-        "country": "United States",
-        "birthday": "2000-05-15",
-        "gender": "male",
-        "interests": ["Coffee"]
-    }
-    resp = update_profile(token, updates)
-    
-    if resp.status_code != 200:
-        print(f"❌ TEST 1 FAILED: PUT /api/users/me returned {resp.status_code}")
+        print(f"❌ TEST 1 FAILED: Expected 201 Created, got {resp.status_code}")
         print(f"   Response: {resp.text}")
-        return False
+        return False, None, None
+    
+    print(f"✅ POST /api/auth/guest returned 201 Created")
     
     data = resp.json()
-    print(f"✅ PUT /api/users/me returned 200")
+    token = data.get("token")
+    user = data.get("user")
     
-    # Verify age is derived correctly (should be 26 since today is 2026-07-07 and birthday is 2000-05-15)
-    age = data.get("age")
-    birthday = data.get("birthday")
-    gender = data.get("gender")
-    country = data.get("country")
+    # Verify token exists and is non-empty
+    if not token or not isinstance(token, str) or len(token) == 0:
+        print(f"❌ TEST 1 FAILED: token is missing or empty")
+        return False, None, None
     
-    print(f"   Response age: {age}")
-    print(f"   Response birthday: {birthday}")
-    print(f"   Response gender: {gender}")
-    print(f"   Response country: {country}")
+    print(f"✅ Response includes non-empty token (JWT): {token[:20]}...")
     
-    # Age should be 26 (2026 - 2000 = 26, and we're past May 15)
-    if not isinstance(age, int):
-        print(f"❌ TEST 1 FAILED: age is not an integer, got {type(age)}")
-        return False
+    # Verify user object exists
+    if not user or not isinstance(user, dict):
+        print(f"❌ TEST 1 FAILED: user object is missing or invalid")
+        return False, token, None
     
-    if age < 25 or age > 26:
-        print(f"❌ TEST 1 FAILED: age should be 25 or 26, got {age}")
-        return False
+    print(f"✅ Response includes user object")
     
-    if birthday != "2000-05-15":
-        print(f"❌ TEST 1 FAILED: birthday should be '2000-05-15', got {birthday}")
-        return False
-    
-    if gender != "male":
-        print(f"❌ TEST 1 FAILED: gender should be 'male', got {gender}")
-        return False
-    
-    if country != "United States":
-        print(f"❌ TEST 1 FAILED: country should be 'United States', got {country}")
-        return False
-    
-    print(f"✅ TEST 1 PASSED: age={age}, birthday={birthday}, gender={gender}, country={country}")
-    return True
-
-def test_scenario_2_invalid_format():
-    """Test 2: Invalid birthday format"""
-    print("\n" + "="*80)
-    print("TEST 2: Invalid birthday format")
-    print("="*80)
-    
-    test_cases = [
-        ("2000/05/15", "slash format"),
-        ("15-05-2000", "DD-MM-YYYY format"),
-        ("invalid", "invalid string")
+    # Verify required user fields
+    required_checks = [
+        ("is_guest", True, lambda v: v is True, "must be true"),
+        ("name", "Guest ", lambda v: isinstance(v, str) and v.startswith("Guest "), "must start with 'Guest '"),
+        ("native_language", "en", lambda v: v == "en", "must be 'en'"),
+        ("learning_language", "es", lambda v: v == "es", "must be 'es'"),
+        ("country", "United States", lambda v: v == "United States", "must be 'United States'"),
+        ("age", 25, lambda v: v == 25, "must be 25"),
+        ("gender", "male", lambda v: v == "male", "must be 'male'"),
+        ("interests", ["Music", "Travel", "Movies"], lambda v: isinstance(v, list) and len(v) > 0, "must be non-empty list"),
+        ("coins", 500, lambda v: v == 500, "must be 500"),
+        ("email", "guest_", lambda v: isinstance(v, str) and v.startswith("guest_"), "must start with 'guest_'"),
+        ("id", None, lambda v: isinstance(v, str) and len(v) > 0, "must be non-empty UUID string"),
     ]
     
     all_passed = True
-    for invalid_birthday, description in test_cases:
-        email = f"dob_test_invalid_{datetime.now().timestamp()}@demo.com"
-        token, user = register_user(email)
-        if not token:
-            print(f"❌ TEST 2 ({description}) FAILED: Could not register user")
+    for field, expected, check_fn, description in required_checks:
+        value = user.get(field)
+        if not check_fn(value):
+            print(f"❌ TEST 1 FAILED: user.{field} {description}, got {value}")
             all_passed = False
-            continue
+        else:
+            if field == "interests":
+                print(f"✅ user.{field} = {value} (non-empty list)")
+            elif field == "name":
+                print(f"✅ user.{field} = '{value}' (starts with 'Guest ')")
+            elif field == "email":
+                print(f"✅ user.{field} = '{value}' (starts with 'guest_')")
+            elif field == "id":
+                print(f"✅ user.{field} = '{value}' (unique UUID)")
+            else:
+                print(f"✅ user.{field} = {value}")
+    
+    if not all_passed:
+        return False, token, user
+    
+    print(f"✅ TEST 1 PASSED: All required fields present and correct")
+    return True, token, user
+
+
+def test_token_auth_me(token):
+    """Test 2: Token works for GET /api/auth/me"""
+    print("\n" + "="*80)
+    print("TEST 2: Token works for GET /api/auth/me")
+    print("="*80)
+    
+    url = f"{BASE_URL}/auth/me"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    
+    if resp.status_code != 200:
+        print(f"❌ TEST 2 FAILED: Expected 200, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"✅ GET /api/auth/me returned 200")
+    
+    data = resp.json()
+    
+    # Verify is_guest is true
+    if data.get("is_guest") is not True:
+        print(f"❌ TEST 2 FAILED: is_guest should be true, got {data.get('is_guest')}")
+        return False
+    
+    print(f"✅ Response.is_guest === true")
+    
+    # Verify same user data
+    if not data.get("name", "").startswith("Guest "):
+        print(f"❌ TEST 2 FAILED: name should start with 'Guest ', got {data.get('name')}")
+        return False
+    
+    print(f"✅ Response includes same guest user data (name: {data.get('name')})")
+    print(f"✅ TEST 2 PASSED")
+    return True
+
+
+def test_token_partners(token):
+    """Test 3: Token works for GET /api/users/partners"""
+    print("\n" + "="*80)
+    print("TEST 3: Token works for GET /api/users/partners (guest not blocked)")
+    print("="*80)
+    
+    url = f"{BASE_URL}/users/partners"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    
+    if resp.status_code != 200:
+        print(f"❌ TEST 3 FAILED: Expected 200, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"✅ GET /api/users/partners returned 200")
+    
+    data = resp.json()
+    
+    if not isinstance(data, list):
+        print(f"❌ TEST 3 FAILED: Expected list of partners, got {type(data)}")
+        return False
+    
+    print(f"✅ Response is a list of partners (count: {len(data)})")
+    print(f"✅ TEST 3 PASSED: Guest can access partners endpoint")
+    return True
+
+
+def test_token_moments(token):
+    """Test 4: Token works for GET /api/moments"""
+    print("\n" + "="*80)
+    print("TEST 4: Token works for GET /api/moments (guest can read moments)")
+    print("="*80)
+    
+    url = f"{BASE_URL}/moments"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(url, headers=headers)
+    
+    if resp.status_code != 200:
+        print(f"❌ TEST 4 FAILED: Expected 200, got {resp.status_code}")
+        print(f"   Response: {resp.text}")
+        return False
+    
+    print(f"✅ GET /api/moments returned 200")
+    
+    data = resp.json()
+    
+    if not isinstance(data, list):
+        print(f"❌ TEST 4 FAILED: Expected list of moments, got {type(data)}")
+        return False
+    
+    print(f"✅ Response is a list of moments (count: {len(data)})")
+    print(f"✅ TEST 4 PASSED: Guest can read moments")
+    return True
+
+
+def test_multiple_guests():
+    """Test 5: Multiple guests - unique IDs and usernames, no collisions"""
+    print("\n" + "="*80)
+    print("TEST 5: Multiple guests - call POST /auth/guest 3 times")
+    print("="*80)
+    
+    url = f"{BASE_URL}/auth/guest"
+    guests = []
+    
+    for i in range(3):
+        resp = requests.post(url, json={})
         
-        updates = {"birthday": invalid_birthday}
-        resp = update_profile(token, updates)
-        
-        if resp.status_code != 400:
-            print(f"❌ TEST 2 ({description}) FAILED: Expected 400, got {resp.status_code}")
+        if resp.status_code != 201:
+            print(f"❌ TEST 5 FAILED: Guest {i+1} creation failed with {resp.status_code}")
             print(f"   Response: {resp.text}")
-            all_passed = False
-            continue
+            return False
         
         data = resp.json()
-        detail = data.get("detail", "")
+        user = data.get("user")
         
-        if "Invalid birthday format" not in detail or "YYYY-MM-DD" not in detail:
-            print(f"❌ TEST 2 ({description}) FAILED: Expected 'Invalid birthday format. Expected YYYY-MM-DD.', got '{detail}'")
-            all_passed = False
-            continue
+        if not user:
+            print(f"❌ TEST 5 FAILED: Guest {i+1} has no user object")
+            return False
         
-        print(f"✅ TEST 2 ({description}) PASSED: Got 400 with correct error message")
+        guests.append(user)
+        print(f"✅ Guest {i+1} created: id={user.get('id')}, username={user.get('username')}, name={user.get('name')}")
     
-    return all_passed
-
-def test_scenario_3_too_young():
-    """Test 3: Out-of-range age (too young)"""
-    print("\n" + "="*80)
-    print("TEST 3: Out-of-range age (too young)")
-    print("="*80)
-    
-    email = f"dob_test_young_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 3 FAILED: Could not register user")
+    # Check all IDs are unique
+    ids = [g.get("id") for g in guests]
+    if len(ids) != len(set(ids)):
+        print(f"❌ TEST 5 FAILED: Guest IDs are not unique: {ids}")
         return False
     
-    # Birthday that makes user 6 years old
-    updates = {"birthday": "2020-01-01"}
-    resp = update_profile(token, updates)
+    print(f"✅ All 3 guest IDs are unique")
     
-    if resp.status_code != 400:
-        print(f"❌ TEST 3 FAILED: Expected 400, got {resp.status_code}")
+    # Check all usernames are unique
+    usernames = [g.get("username") for g in guests]
+    if len(usernames) != len(set(usernames)):
+        print(f"❌ TEST 5 FAILED: Guest usernames are not unique: {usernames}")
+        return False
+    
+    print(f"✅ All 3 guest usernames are unique")
+    
+    # Check no 400/500 errors (already checked above with 201 status)
+    print(f"✅ No 400/500 errors (no DuplicateKey collisions)")
+    print(f"✅ TEST 5 PASSED")
+    return True
+
+
+def test_register_regression():
+    """Test 6: Regression - POST /auth/register still works"""
+    print("\n" + "="*80)
+    print("TEST 6: Regression - POST /auth/register with fresh user")
+    print("="*80)
+    
+    url = f"{BASE_URL}/auth/register"
+    email = f"test_reg_{datetime.now().timestamp()}@demo.com"
+    payload = {
+        "email": email,
+        "password": "Password123!",
+        "name": "Test User"
+    }
+    
+    resp = requests.post(url, json=payload)
+    
+    if resp.status_code != 201:
+        print(f"❌ TEST 6 FAILED: Expected 201, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
     
-    data = resp.json()
-    detail = data.get("detail", "")
-    
-    if "Age must be between 13 and 120" not in detail:
-        print(f"❌ TEST 3 FAILED: Expected 'Age must be between 13 and 120.', got '{detail}'")
-        return False
-    
-    print(f"✅ TEST 3 PASSED: Got 400 with correct error message")
-    return True
-
-def test_scenario_4_future_date():
-    """Test 4: Out-of-range age (future date)"""
-    print("\n" + "="*80)
-    print("TEST 4: Out-of-range age (future date)")
-    print("="*80)
-    
-    email = f"dob_test_future_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 4 FAILED: Could not register user")
-        return False
-    
-    # Future birthday
-    updates = {"birthday": "2030-01-01"}
-    resp = update_profile(token, updates)
-    
-    if resp.status_code != 400:
-        print(f"❌ TEST 4 FAILED: Expected 400, got {resp.status_code}")
-        print(f"   Response: {resp.text}")
-        return False
+    print(f"✅ POST /api/auth/register returned 201")
     
     data = resp.json()
-    detail = data.get("detail", "")
+    token = data.get("token")
+    user = data.get("user")
     
-    if "Age must be between 13 and 120" not in detail:
-        print(f"❌ TEST 4 FAILED: Expected 'Age must be between 13 and 120.', got '{detail}'")
+    if not token or not user:
+        print(f"❌ TEST 6 FAILED: Missing token or user in response")
         return False
     
-    print(f"✅ TEST 4 PASSED: Got 400 with correct error message")
+    print(f"✅ Response includes token and user")
+    
+    # Verify is_guest is false (or absent) for regular user
+    is_guest = user.get("is_guest")
+    if is_guest is True:
+        print(f"❌ TEST 6 FAILED: Regular user should have is_guest=false, got {is_guest}")
+        return False
+    
+    print(f"✅ Regular user has is_guest={is_guest} (false or absent)")
+    print(f"✅ TEST 6 PASSED: Register endpoint works as before")
     return True
 
-def test_scenario_5_age_lock():
-    """Test 5: Age lock (birthday cannot change once set)"""
-    print("\n" + "="*80)
-    print("TEST 5: Age lock (birthday cannot change once set)")
-    print("="*80)
-    
-    email = f"dob_test_lock_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 5 FAILED: Could not register user")
-        return False
-    
-    # First PUT with birthday
-    updates1 = {"birthday": "2000-05-15"}
-    resp1 = update_profile(token, updates1)
-    
-    if resp1.status_code != 200:
-        print(f"❌ TEST 5 FAILED: First PUT returned {resp1.status_code}")
-        print(f"   Response: {resp1.text}")
-        return False
-    
-    data1 = resp1.json()
-    birthday1 = data1.get("birthday")
-    age1 = data1.get("age")
-    
-    print(f"✅ First PUT successful: birthday={birthday1}, age={age1}")
-    
-    if birthday1 != "2000-05-15":
-        print(f"❌ TEST 5 FAILED: First birthday should be '2000-05-15', got {birthday1}")
-        return False
-    
-    if age1 != 26:
-        print(f"❌ TEST 5 FAILED: First age should be 26, got {age1}")
-        return False
-    
-    # Second PUT trying to change birthday (should be silently ignored)
-    updates2 = {"birthday": "1990-01-01"}
-    resp2 = update_profile(token, updates2)
-    
-    if resp2.status_code != 200:
-        print(f"❌ TEST 5 FAILED: Second PUT returned {resp2.status_code}")
-        print(f"   Response: {resp2.text}")
-        return False
-    
-    print(f"✅ Second PUT returned 200 (silently ignored)")
-    
-    # Verify via GET /api/auth/me that birthday and age are unchanged
-    resp_me = get_me(token)
-    if resp_me.status_code != 200:
-        print(f"❌ TEST 5 FAILED: GET /api/auth/me returned {resp_me.status_code}")
-        return False
-    
-    data_me = resp_me.json()
-    birthday_final = data_me.get("birthday")
-    age_final = data_me.get("age")
-    
-    print(f"   GET /api/auth/me: birthday={birthday_final}, age={age_final}")
-    
-    if birthday_final != "2000-05-15":
-        print(f"❌ TEST 5 FAILED: Birthday should still be '2000-05-15', got {birthday_final}")
-        return False
-    
-    if age_final != 26:
-        print(f"❌ TEST 5 FAILED: Age should still be 26, got {age_final}")
-        return False
-    
-    print(f"✅ TEST 5 PASSED: Birthday and age locked correctly")
-    return True
 
-def test_scenario_6_backward_compat():
-    """Test 6: Backward compat — text-only update"""
+def test_login_regression():
+    """Test 7: Regression - POST /auth/login with existing user"""
     print("\n" + "="*80)
-    print("TEST 6: Backward compat — text-only update")
+    print("TEST 7: Regression - POST /auth/login with existing user")
     print("="*80)
     
-    email = f"dob_test_compat_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 6 FAILED: Could not register user")
-        return False
+    url = f"{BASE_URL}/auth/login"
+    payload = {
+        "email": "mei@demo.com",
+        "password": "Demo1234!"
+    }
     
-    # Update with just bio (no birthday)
-    updates = {"bio": "hello there"}
-    resp = update_profile(token, updates)
+    resp = requests.post(url, json=payload)
     
     if resp.status_code != 200:
-        print(f"❌ TEST 6 FAILED: PUT returned {resp.status_code}")
+        print(f"❌ TEST 7 FAILED: Expected 200, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
     
-    data = resp.json()
-    bio = data.get("bio")
+    print(f"✅ POST /api/auth/login returned 200")
     
-    if bio != "hello there":
-        print(f"❌ TEST 6 FAILED: bio should be 'hello there', got {bio}")
+    data = resp.json()
+    token = data.get("token")
+    user = data.get("user")
+    
+    if not token or not user:
+        print(f"❌ TEST 7 FAILED: Missing token or user in response")
         return False
     
-    print(f"✅ TEST 6 PASSED: Text-only update works, bio={bio}")
+    print(f"✅ Response includes token and user")
+    
+    # Verify is_guest is false (or absent) for regular user
+    is_guest = user.get("is_guest")
+    if is_guest is True:
+        print(f"❌ TEST 7 FAILED: Regular user mei@demo.com should have is_guest=false, got {is_guest}")
+        return False
+    
+    print(f"✅ Regular user has is_guest={is_guest} (false or absent)")
+    print(f"✅ TEST 7 PASSED: Login endpoint works as before")
     return True
 
-def test_scenario_7_direct_age():
-    """Test 7: Existing behavior — direct age still works when birthday NOT set"""
+
+def test_auth_me_regular_user():
+    """Test 8: Regression - GET /auth/me for regular user has is_guest field"""
     print("\n" + "="*80)
-    print("TEST 7: Existing behavior — direct age still works when birthday NOT set")
+    print("TEST 8: Regression - GET /auth/me for regular user includes is_guest field")
     print("="*80)
     
-    email = f"dob_test_direct_{datetime.now().timestamp()}@demo.com"
-    token, user = register_user(email)
-    if not token:
-        print("❌ TEST 7 FAILED: Could not register user")
+    # First login as mei
+    login_url = f"{BASE_URL}/auth/login"
+    login_payload = {
+        "email": "mei@demo.com",
+        "password": "Demo1234!"
+    }
+    
+    login_resp = requests.post(login_url, json=login_payload)
+    
+    if login_resp.status_code != 200:
+        print(f"❌ TEST 8 FAILED: Login failed with {login_resp.status_code}")
         return False
     
-    # Update with direct age (no birthday)
-    updates = {"age": 30, "gender": "female"}
-    resp = update_profile(token, updates)
+    token = login_resp.json().get("token")
+    
+    # Now call GET /auth/me
+    me_url = f"{BASE_URL}/auth/me"
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(me_url, headers=headers)
     
     if resp.status_code != 200:
-        print(f"❌ TEST 7 FAILED: PUT returned {resp.status_code}")
+        print(f"❌ TEST 8 FAILED: Expected 200, got {resp.status_code}")
         print(f"   Response: {resp.text}")
         return False
     
-    data = resp.json()
-    age = data.get("age")
+    print(f"✅ GET /api/auth/me returned 200")
     
-    if age != 30:
-        print(f"❌ TEST 7 FAILED: age should be 30, got {age}")
+    data = resp.json()
+    
+    # Verify is_guest field exists and is false
+    is_guest = data.get("is_guest")
+    if is_guest is True:
+        print(f"❌ TEST 8 FAILED: Regular user should have is_guest=false, got {is_guest}")
         return False
     
-    print(f"✅ TEST 7 PASSED: Direct age update works, age={age}")
+    print(f"✅ Regular user has is_guest={is_guest} (false or absent)")
+    print(f"✅ TEST 8 PASSED: user_public shape includes is_guest field defaulting to false")
     return True
+
 
 def main():
     print("\n" + "="*80)
-    print("BACKEND TEST: Birthday → Derived Age Feature (Round 13)")
+    print("BACKEND TEST: Guest Authentication Feature (Round 14)")
     print("="*80)
     print(f"Backend URL: {BASE_URL}")
     print(f"Test Date: {datetime.now().isoformat()}")
     
     results = []
     
-    # Run all test scenarios
-    results.append(("Test 1: Happy path", test_scenario_1_happy_path()))
-    results.append(("Test 2: Invalid format", test_scenario_2_invalid_format()))
-    results.append(("Test 3: Too young", test_scenario_3_too_young()))
-    results.append(("Test 4: Future date", test_scenario_4_future_date()))
-    results.append(("Test 5: Age lock", test_scenario_5_age_lock()))
-    results.append(("Test 6: Backward compat", test_scenario_6_backward_compat()))
-    results.append(("Test 7: Direct age", test_scenario_7_direct_age()))
+    # Test 1: Basic guest login
+    test1_passed, guest_token, guest_user = test_basic_guest_login()
+    results.append(("Test 1: Basic guest login", test1_passed))
+    
+    # Tests 2-4: Token authentication (only if test 1 passed)
+    if test1_passed and guest_token:
+        results.append(("Test 2: Token works for /auth/me", test_token_auth_me(guest_token)))
+        results.append(("Test 3: Token works for /users/partners", test_token_partners(guest_token)))
+        results.append(("Test 4: Token works for /moments", test_token_moments(guest_token)))
+    else:
+        print("\n⚠️  Skipping tests 2-4 because test 1 failed")
+        results.append(("Test 2: Token works for /auth/me", False))
+        results.append(("Test 3: Token works for /users/partners", False))
+        results.append(("Test 4: Token works for /moments", False))
+    
+    # Test 5: Multiple guests
+    results.append(("Test 5: Multiple guests (unique IDs)", test_multiple_guests()))
+    
+    # Tests 6-8: Regression tests
+    results.append(("Test 6: Regression - register", test_register_regression()))
+    results.append(("Test 7: Regression - login", test_login_regression()))
+    results.append(("Test 8: Regression - /auth/me for regular user", test_auth_me_regular_user()))
     
     # Summary
     print("\n" + "="*80)

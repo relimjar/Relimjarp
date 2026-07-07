@@ -64,6 +64,7 @@ export interface User {
   username_changed_at?: string | null;
   is_vip?: boolean;
   is_admin?: boolean;
+  is_guest?: boolean;
   vip_tier?: "weekly" | "monthly" | "lifetime" | null;
   active_badge?: { id: string; emoji: string; expires_at?: string | null } | null;
   active_frame?: { id: string; color: string; colors?: string[] | null; animated?: boolean; expires_at?: string | null } | null;

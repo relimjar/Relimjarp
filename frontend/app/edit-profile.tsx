@@ -26,6 +26,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { VoiceBubble } from "@/src/components/VoiceBubble";
 import { INTERESTS, MAX_INTERESTS } from "@/src/constants/interests";
 import {
@@ -715,13 +716,7 @@ export default function EditProfile() {
             <Ionicons name="earth" size={220} color="rgba(255,255,255,0.12)" />
           </View>
           <SafeAreaView edges={["top"]} style={styles.coverBar}>
-            <Pressable
-              testID="edit-back-btn"
-              style={styles.coverIconBtn}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-            </Pressable>
+            <BackButton testID="edit-back-btn" variant="overlay" />
             <Pressable
               testID="edit-cover-btn"
               style={styles.coverImgBtn}

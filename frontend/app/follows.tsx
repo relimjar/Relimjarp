@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { VipBadge } from "@/src/components/Badges";
 import { LanguagePair } from "@/src/components/LanguagePair";
 import { countryToCode } from "@/src/constants/countries";
@@ -47,13 +48,7 @@ export default function Follows() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="follows-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="follows-back-btn"
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="follows-back-btn" />
         <Text style={styles.headerTitle}>Connections</Text>
         <View style={{ width: 40 }} />
       </View>

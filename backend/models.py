@@ -200,6 +200,7 @@ def user_public(doc: dict) -> dict:
         "cover_url": doc.get("cover_url"),
         "voice_bio_id": doc.get("voice_bio_id"),
         "voice_bio_duration_ms": doc.get("voice_bio_duration_ms"),
+        "is_guest": bool(doc.get("is_guest")),
     }
 
 

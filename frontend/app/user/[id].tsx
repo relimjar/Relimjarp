@@ -16,6 +16,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { VipBadge } from "@/src/components/Badges";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { LikersRow } from "@/src/components/LikersRow";
@@ -249,78 +250,82 @@ export default function UserProfile() {
 
   return (
     <View style={styles.container} testID="user-profile-screen">
+      {/* Fixed cover behind everything — content scrolls over it */}
+      <View style={styles.coverFixed} pointerEvents="none">
+        {profile.cover_url ? (
+          <Image
+            source={{ uri: assetUrl(profile.cover_url) || undefined }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={["#7C6BF0", "#6D5AE8"]}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
+        <View style={[StyleSheet.absoluteFill, styles.coverGlobe]}>
+          <Ionicons name="earth" size={200} color="rgba(255,255,255,0.12)" />
+        </View>
+      </View>
+
+      {/* Transparent floating header — sits on top of the fixed cover */}
+      <SafeAreaView edges={["top"]} style={styles.coverBar} pointerEvents="box-none">
+        <BackButton
+          testID="user-profile-back-btn"
+          variant="overlay"
+        />
+        {isSelf ? (
+          <View style={styles.coverIconBtn} />
+        ) : (
+          <Pressable
+            testID="user-menu-btn"
+            style={styles.coverIconBtn}
+            onPress={openMenu}
+          >
+            <Ionicons name="ellipsis-horizontal" size={24} color="#FFFFFF" />
+          </Pressable>
+        )}
+      </SafeAreaView>
+
       <ScrollView
         contentContainerStyle={{ paddingBottom: 96 + insets.bottom }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Cover */}
-        <View style={styles.coverWrap}>
-          {profile.cover_url ? (
-            <Image
-              source={{ uri: assetUrl(profile.cover_url) || undefined }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-            />
-          ) : (
-            <LinearGradient
-              colors={["#7C6BF0", "#6D5AE8"]}
-              style={StyleSheet.absoluteFill}
-            />
-          )}
-          <View style={[StyleSheet.absoluteFill, styles.coverGlobe]}>
-            <Ionicons name="earth" size={200} color="rgba(255,255,255,0.12)" />
-          </View>
-          <SafeAreaView edges={["top"]} style={styles.coverBar}>
-            <Pressable
-              testID="user-profile-back-btn"
-              style={styles.coverIconBtn}
-              onPress={() => router.back()}
-            >
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-            </Pressable>
-            {isSelf ? (
-              <View style={styles.coverIconBtn} />
-            ) : (
-              <Pressable
-                testID="user-menu-btn"
-                style={styles.coverIconBtn}
-                onPress={openMenu}
-              >
-                <Ionicons name="ellipsis-horizontal" size={24} color="#FFFFFF" />
-              </Pressable>
-            )}
-          </SafeAreaView>
-        </View>
+        {/* Transparent spacer that lets the cover show through at the top */}
+        <View style={styles.coverSpacer} />
 
-        {/* Avatar + like + time */}
-        <View style={styles.avatarRow}>
-          <View style={styles.avatarWrap}>
-            <Avatar
-              name={profile.name}
-              url={profile.avatar_url}
-              size={84}
-              flagCode={countryToCode(profile.country)}
-              frame={profile.active_frame}
-            />
-          </View>
-          <View style={styles.avatarRight}>
-            <View style={styles.timePill}>
-              <Text style={styles.timePillText}>{dayjs().format("h:mm A")}</Text>
-            </View>
-            <Pressable
-              testID="user-like-pill"
-              style={styles.likePill}
-              onPress={() => setLiked((v) => !v)}
-            >
-              <Ionicons
-                name={liked ? "thumbs-up" : "thumbs-up-outline"}
-                size={18}
-                color={liked ? colors.brand : colors.onSurfaceSecondary}
+        {/* Content sheet slides up over the cover */}
+        <View style={styles.contentSheet}>
+          {/* Avatar + like + time */}
+          <View style={styles.avatarRow}>
+            <View style={styles.avatarWrap}>
+              <Avatar
+                name={profile.name}
+                url={profile.avatar_url}
+                size={84}
+                flagCode={countryToCode(profile.country)}
+                frame={profile.active_frame}
               />
-              <Text style={styles.likePillText}>{liked ? 1 : 0}</Text>
-            </Pressable>
+            </View>
+            <View style={styles.avatarRight}>
+              <View style={styles.timePill}>
+                <Text style={styles.timePillText}>{dayjs().format("h:mm A")}</Text>
+              </View>
+              <Pressable
+                testID="user-like-pill"
+                style={styles.likePill}
+                onPress={() => setLiked((v) => !v)}
+              >
+                <Ionicons
+                  name={liked ? "thumbs-up" : "thumbs-up-outline"}
+                  size={18}
+                  color={liked ? colors.brand : colors.onSurfaceSecondary}
+                />
+                <Text style={styles.likePillText}>{liked ? 1 : 0}</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
 
         <View style={styles.body}>
           {/* Name row */}
@@ -700,6 +705,7 @@ export default function UserProfile() {
             </View>
           )}
         </View>
+        </View>
       </ScrollView>
 
       {/* Bottom action bar */}
@@ -760,6 +766,28 @@ const makeStyles = (colors: ThemeColors) =>
       alignItems: "center",
       justifyContent: "center",
     },
+    coverFixed: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 200,
+      backgroundColor: "#6D5AE8",
+      overflow: "hidden",
+    },
+    coverSpacer: {
+      // Transparent gap that lets the fixed cover show through. Slightly less
+      // than the cover so the content sheet's rounded top overlaps the cover
+      // by 40px — that visual "sliding up" effect.
+      height: 160,
+      backgroundColor: "transparent",
+    },
+    contentSheet: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: 22,
+      borderTopRightRadius: 22,
+      minHeight: 600,
+    },
     coverWrap: {
       height: 176,
       backgroundColor: "#6D5AE8",
@@ -770,11 +798,16 @@ const makeStyles = (colors: ThemeColors) =>
       justifyContent: "center",
     },
     coverBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
       flexDirection: "row",
       alignItems: "flex-start",
       justifyContent: "space-between",
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.sm,
+      zIndex: 5,
     },
     coverIconBtn: {
       width: 40,
@@ -782,6 +815,7 @@ const makeStyles = (colors: ThemeColors) =>
       borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.35)",
     },
     avatarRow: {
       flexDirection: "row",

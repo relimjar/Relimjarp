@@ -31,6 +31,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { MessageReactionsPopup } from "@/src/components/MessageReactionsPopup";
 import { RoomMomentCard } from "@/src/components/RoomMomentCard";
 import { VoiceBubble } from "@/src/components/VoiceBubble";
@@ -689,9 +690,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="chat-screen">
       <View style={styles.header}>
-        <Pressable testID="chat-back-btn" onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="chat-back-btn" />
         {partner && (
           <>
             <Pressable

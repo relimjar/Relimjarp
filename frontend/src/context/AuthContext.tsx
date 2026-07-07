@@ -17,6 +17,7 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  guestLogin: () => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
 }
@@ -81,6 +82,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     [applyAuth],
   );
 
+  const guestLogin = useCallback(async () => {
+    const resp = await api.post<{ token: string; user: User }>("/auth/guest");
+    await applyAuth(resp);
+  }, [applyAuth]);
+
   const logout = useCallback(async () => {
     setAuthToken(null);
     await storage.secureRemove(TOKEN_KEY);
@@ -89,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, setUser }}
+      value={{ user, loading, login, register, guestLogin, logout, setUser }}
     >
       {children}
     </AuthContext.Provider>

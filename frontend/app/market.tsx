@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { BackButton } from "@/src/components/BackButton";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { fonts, radius, shadow, spacing, ThemeColors } from "@/src/theme";
@@ -95,13 +96,7 @@ export default function Market() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="market-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="market-back-btn"
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="market-back-btn" />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Marketplace</Text>
           <Text style={styles.headerSub}>Spend coins on VIP, badges & rings</Text>

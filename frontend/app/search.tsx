@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { GenderBadge, VipBadge } from "@/src/components/Badges";
 import { LanguagePair } from "@/src/components/LanguagePair";
 import { countryToCode } from "@/src/constants/countries";
@@ -74,13 +75,7 @@ export default function Search() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="search-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="search-back-btn"
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="search-back-btn" />
         <View style={styles.searchBox}>
           <Ionicons name="search" size={17} color={colors.onSurfaceSecondary} />
           <TextInput

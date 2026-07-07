@@ -1329,3 +1329,63 @@ agent_communication:
       message: "Round 13. Backend: PUT /api/users/me now accepts 'birthday' (YYYY-MM-DD ISO date), computes age from it. Please test: (A) Login as newly-registered user (register with unique email + Password123!), set profile: PUT /users/me with body {name:'X', native_language:'en', learning_language:'es', country:'United States', birthday:'2000-05-15', gender:'male', interests:['Coffee']} → 200, response.age == 25 (or exact based on 2026-current), response.birthday == '2000-05-15'. (B) Malformed birthday '2000/05/15' or '15-05-2000' → 400 'Invalid birthday format'. (C) Future date '2030-05-15' derives age < 13 → 400 'Age must be between 13 and 120'. (D) Age-lock: after birthday is set once, another PUT with different birthday '1990-01-01' is silently dropped (returned user still has original birthday='2000-05-15', age unchanged). (E) Text-only PUT {bio:'hi'} unaffected. Use a fresh register call for each user to avoid the age-lock. Do NOT test the frontend — user will test manually."
     - agent: "testing"
       message: "✅ ROUND 13 BACKEND TESTING COMPLETED - ALL TESTS PASSED (7/7). Birthday → Derived Age feature is fully functional. Test summary: TEST 1 - Happy path ✅: Fresh user registration, PUT /api/users/me with birthday='2000-05-15' + native_language/learning_language/country/gender/interests returns 200. Age correctly derived as 26 (for date 2026-07-07), birthday='2000-05-15', gender='male', country='United States' all persisted. TEST 2 - Invalid format ✅: All 3 invalid birthday formats ('2000/05/15', '15-05-2000', 'invalid') correctly rejected with 400 and error message 'Invalid birthday format. Expected YYYY-MM-DD.' TEST 3 - Too young ✅: birthday='2020-01-01' (age 6) correctly rejected with 400 and 'Age must be between 13 and 120.' TEST 4 - Future date ✅: birthday='2030-01-01' correctly rejected with 400 and 'Age must be between 13 and 120.' TEST 5 - Age lock ✅: First PUT with birthday='2000-05-15' sets age=26. Second PUT with birthday='1990-01-01' returns 200 but silently ignores change. GET /api/auth/me confirms birthday still '2000-05-15' and age still 26. Lock working correctly. TEST 6 - Backward compat ✅: PUT with only {bio:'hello there'} returns 200, bio updated correctly, no errors. TEST 7 - Direct age ✅: PUT with {age:30, gender:'female'} (no birthday) returns 200, age=30. Direct age setting still works when birthday not set. No critical issues found. All validation, age derivation, and locking logic working perfectly. Ready for main agent to summarize and finish."
+
+## Test Run — Guest Mode + Icon Consistency + Parallax Profile (Round 14)
+user_problem_statement: (1) Add "Guest Mode" button on welcome/signup page — bypass signup/login and enter the app directly. (2) All back icons in the app should be consistent (branding) — same style everywhere. (3) On profile page, cover image should stay FIXED while content scrolls over it (parallax-style).
+
+backend:
+  - task: "POST /api/auth/guest - one-tap guest account"
+    implemented: true
+    working: true
+    file: "backend/routes/auth.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New endpoint creates a temporary guest user with sensible defaults (native_language='en', learning_language='es', country='United States', age=25, gender='male', interests, is_guest=true). Returns {token, user} same shape as register. Pre-filled onboarding fields let guests skip onboarding straight into the app. Guest users have 500 starting coins (less than the 1000 for full registrants), unreachable password (auto-generated). is_guest exposed in user_public."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL 8 TESTS PASSED. TEST 1 - Basic guest login: POST /api/auth/guest with empty body returns 201 Created with token (non-empty JWT) and user object. All required fields verified: is_guest=true ✅, name='Guest 8546' (starts with 'Guest ') ✅, native_language='en' ✅, learning_language='es' ✅, country='United States' ✅, age=25 ✅, gender='male' ✅, interests=['Music','Travel','Movies'] (non-empty list) ✅, coins=500 ✅, email='guest_250669cc@guest.linguaconnect.local' (starts with 'guest_') ✅, id='250669cc-31a2-4eb3-8556-4ecb4684a3e9' (unique UUID) ✅. TEST 2 - Token authentication /auth/me: GET /api/auth/me with guest token returns 200, is_guest=true, same guest user data ✅. TEST 3 - Token authentication /users/partners: GET /api/users/partners with guest token returns 200 with list of 6 partners, guest not blocked ✅. TEST 4 - Token authentication /moments: GET /api/moments with guest token returns 200 with list of 6 moments, guest can read moments ✅. TEST 5 - Multiple guests: Called POST /auth/guest 3 times, all returned 201. All 3 guest IDs unique ✅, all 3 usernames unique ✅, no 400/500 errors (no DuplicateKey collisions) ✅. TEST 6 - Regression /auth/register: POST /api/auth/register with fresh user returns 201 with token and user, is_guest=false ✅. TEST 7 - Regression /auth/login: POST /api/auth/login with mei@demo.com returns 200 with token and user, is_guest=false ✅. TEST 8 - Regression /auth/me regular user: GET /api/auth/me for regular user (mei@demo.com) returns 200, is_guest=false ✅. All endpoints working correctly, no critical issues found."
+
+frontend:
+  - task: "Welcome screen: 'Continue as Guest' button"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/index.tsx, frontend/src/context/AuthContext.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New guestLogin() in AuthContext calls POST /auth/guest and lands directly at /(tabs)/connect. Welcome screen shows 'or' divider then outlined 'Continue as Guest' button with rocket icon. Handles loading state (ActivityIndicator) and inline error text. testID guest-mode-btn."
+  - task: "Consistent BackButton component across all screens"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/BackButton.tsx + 9 screens"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New BackButton component with 3 variants (default/overlay/plain). Always chevron-back icon size 24. Replaces manual back buttons in: market.tsx, search.tsx, notifications.tsx, visitors.tsx, follows.tsx, moment/[id].tsx, translate.tsx, auth.tsx, chat/[id].tsx, edit-profile.tsx, user/[id].tsx."
+  - task: "User profile: cover stays fixed, content scrolls over it (parallax)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/user/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Restructured: cover image absolute-positioned behind ScrollView (height 200). ScrollView has a transparent spacer of 160 then a rounded-top content sheet (surface bg). Header (back + menu) is floating over cover as absolute positioned SafeAreaView. Content scrolls over the static cover."
+
+agent_communication:
+    - agent: "main"
+      message: "Round 14 backend addition: POST /api/auth/guest. Please backend-test: (1) POST /api/auth/guest with no body → 201, response {token, user}. Verify user has: is_guest=true, name starts with 'Guest', native_language='en', learning_language='es', country='United States', age=25, gender='male', interests non-empty, coins=500. (2) Use returned token to call GET /api/auth/me → returns same user with is_guest=true. (3) Guest can do normal actions e.g. GET /api/users/partners → 200 (not blocked). (4) Multiple sequential POST /auth/guest calls → each returns a unique user_id, unique username, no DuplicateKey errors. (5) Existing /register and /login unchanged (regression). Don't test frontend."
+    - agent: "testing"
+      message: "✅ ROUND 14 GUEST AUTHENTICATION BACKEND TESTS COMPLETED - ALL 8 TESTS PASSED (8/8). Feature fully functional. Test summary: (1) ✅ Basic guest login: POST /api/auth/guest with empty body returns 201 Created with valid JWT token and complete user object. All 13 required fields verified correct (is_guest=true, name starts with 'Guest ', native_language='en', learning_language='es', country='United States', age=25, gender='male', interests non-empty list, coins=500, email starts with 'guest_', unique UUID). (2) ✅ Token authentication /auth/me: Guest token works, returns 200 with is_guest=true and same user data. (3) ✅ Token authentication /users/partners: Guest can access partners endpoint, returns 200 with 6 partners. Guest not blocked from app features. (4) ✅ Token authentication /moments: Guest can read moments feed, returns 200 with 6 moments. (5) ✅ Multiple guests: Created 3 guests sequentially, all returned 201. All IDs unique, all usernames unique, no DuplicateKey collisions. (6) ✅ Regression /auth/register: Register endpoint unchanged, returns 201 with is_guest=false for regular users. (7) ✅ Regression /auth/login: Login endpoint unchanged, returns 200 with is_guest=false for existing user (mei@demo.com). (8) ✅ Regression /auth/me: Regular user profile includes is_guest field defaulting to false. No critical issues found. Guest authentication feature working perfectly. Ready for main agent to summarize and finish."

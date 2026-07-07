@@ -19,10 +19,27 @@ const HERO_URL =
   "https://images.unsplash.com/photo-1669950200209-69d8292c032f?crop=entropy&cs=srgb&fm=jpg&q=85&w=1200";
 
 export default function Index() {
-  const { user, loading } = useAuth();
+  const { user, loading, guestLogin } = useAuth();
   const router = useRouter();
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
+  const [guestBusy, setGuestBusy] = React.useState(false);
+  const [guestErr, setGuestErr] = React.useState<string | null>(null);
+
+  const enterAsGuest = async () => {
+    if (guestBusy) return;
+    setGuestBusy(true);
+    setGuestErr(null);
+    try {
+      await guestLogin();
+      // AuthContext.setUser will trigger the redirect below on next render;
+      // but push explicitly so we don't get stuck on the welcome screen.
+      router.replace("/(tabs)/connect");
+    } catch (e) {
+      setGuestErr(e instanceof Error ? e.message : "Couldn't start guest mode.");
+      setGuestBusy(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -70,6 +87,31 @@ export default function Index() {
           >
             <Text style={styles.secondaryBtnText}>I already have an account</Text>
           </Pressable>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+          <Pressable
+            testID="guest-mode-btn"
+            style={({ pressed }) => [styles.guestBtn, pressed && styles.pressed]}
+            onPress={enterAsGuest}
+            disabled={guestBusy}
+          >
+            {guestBusy ? (
+              <ActivityIndicator color={colors.onSurface} />
+            ) : (
+              <>
+                <Ionicons name="rocket" size={17} color={colors.onSurface} />
+                <Text style={styles.guestBtnText}>Continue as Guest</Text>
+              </>
+            )}
+          </Pressable>
+          {guestErr ? (
+            <Text style={styles.guestErr} testID="guest-mode-error">
+              {guestErr}
+            </Text>
+          ) : null}
         </View>
       </SafeAreaView>
     </View>
@@ -157,6 +199,44 @@ const makeStyles = (colors: ThemeColors) =>
     color: colors.brand,
     fontFamily: fonts.textBold,
     fontSize: 15,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: 2,
+  },
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.borderStrong,
+  },
+  dividerText: {
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    color: colors.onSurfaceSecondary,
+  },
+  guestBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    paddingVertical: spacing.md,
+  },
+  guestBtnText: {
+    color: colors.onSurface,
+    fontFamily: fonts.textBold,
+    fontSize: 15,
+  },
+  guestErr: {
+    color: colors.error,
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: -4,
   },
   pressed: {
     opacity: 0.75,

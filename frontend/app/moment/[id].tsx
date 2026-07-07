@@ -18,6 +18,7 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { VipBadge } from "@/src/components/Badges";
 import { LikersRow } from "@/src/components/LikersRow";
 import { RoomMomentCard } from "@/src/components/RoomMomentCard";
@@ -135,13 +136,7 @@ export default function MomentDetail() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="moment-detail-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="moment-detail-back-btn"
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="moment-detail-back-btn" />
         {showAuthorBar && moment?.author ? (
           <Pressable
             testID="moment-detail-header-author"

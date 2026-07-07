@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { BackButton } from "@/src/components/BackButton";
 import { countryToCode } from "@/src/constants/countries";
 import { useNotifications } from "@/src/context/NotificationsContext";
 import { useTheme } from "@/src/context/ThemeContext";
@@ -56,13 +57,7 @@ export default function Notifications() {
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="notifications-screen">
       <View style={styles.header}>
-        <Pressable
-          testID="notifications-back-btn"
-          onPress={() => router.back()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
-        </Pressable>
+        <BackButton testID="notifications-back-btn" />
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 40 }} />
       </View>
