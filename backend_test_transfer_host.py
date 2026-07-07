@@ -9,7 +9,7 @@ import sys
 import time
 
 # Backend URL from frontend/.env
-BASE_URL = "https://fa40a208-1172-41b2-9751-b7dbbf618fb2.preview.emergentagent.com/api"
+BASE_URL = "https://voice-room-ui.preview.emergentagent.com/api"
 
 # Test credentials from /app/memory/test_credentials.md
 MEI_EMAIL = "mei@demo.com"

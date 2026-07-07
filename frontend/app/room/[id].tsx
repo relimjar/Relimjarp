@@ -403,7 +403,7 @@ export default function RoomScreen() {
     setSharingChatId(conv.id);
     try {
       await api.post(`/chats/${conv.id}/messages`, {
-        text: `🎙️ Join my live voice room "${room?.title}" on LinguaConnect!`,
+        room_id: id,
       });
       setChatPickOpen(false);
       Alert.alert(
@@ -1122,31 +1122,31 @@ export default function RoomScreen() {
                 <View style={styles.switcherIconRow}>
                   <Pressable
                     testID="room-switcher-share-btn"
-                    style={styles.switcherIconBtn}
+                    style={[styles.switcherIconBtn, styles.switcherShareBtn]}
                     onPress={() => setShareMenuOpen(true)}
                   >
-                    <Ionicons name="share-outline" size={22} color="#FFFFFF" />
+                    <Ionicons name="share-social" size={19} color="#FFFFFF" />
                   </Pressable>
                   <Pressable
                     testID="room-switcher-minimize-btn"
-                    style={styles.switcherIconBtn}
+                    style={[styles.switcherIconBtn, styles.switcherMinimizeBtn]}
                     onPress={minimizeRoom}
                   >
                     <MaterialCommunityIcons
-                      name="picture-in-picture-bottom-right"
+                      name="arrow-collapse"
                       size={19}
                       color="#FFFFFF"
                     />
                   </Pressable>
                   <Pressable
                     testID="room-power-btn"
-                    style={styles.switcherIconBtn}
+                    style={[styles.switcherIconBtn, styles.switcherPowerBtn]}
                     onPress={() => {
                       setMenuOpen(false);
                       leave();
                     }}
                   >
-                    <Ionicons name="power" size={21} color="#FFFFFF" />
+                    <Ionicons name="power" size={19} color="#FFFFFF" />
                   </Pressable>
                 </View>
 
@@ -2301,26 +2301,41 @@ const makeStyles = () =>
       backgroundColor: "rgba(0,0,0,0.45)",
     },
     switcherPanel: {
-      width: "83%",
-      maxWidth: 420,
+      width: "70%",
+      maxWidth: 320,
       backgroundColor: "#111119",
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
     },
     switcherIconRow: {
       flexDirection: "row",
       justifyContent: "flex-end",
       alignItems: "center",
-      gap: 14,
+      gap: 10,
       paddingTop: spacing.md,
       paddingBottom: spacing.xl,
     },
     switcherIconBtn: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      backgroundColor: "rgba(255,255,255,0.1)",
+      width: 42,
+      height: 42,
+      borderRadius: 21,
       alignItems: "center",
       justifyContent: "center",
+      shadowColor: "#000",
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 4,
+    },
+    switcherShareBtn: {
+      backgroundColor: "#6D5AE8",
+    },
+    switcherMinimizeBtn: {
+      backgroundColor: "rgba(255,255,255,0.14)",
+      borderWidth: 1,
+      borderColor: "rgba(255,255,255,0.18)",
+    },
+    switcherPowerBtn: {
+      backgroundColor: "#EF4444",
     },
     switcherTitle: {
       fontFamily: fonts.display,

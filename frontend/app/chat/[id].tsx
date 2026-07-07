@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import { Ionicons } from "@expo/vector-icons";
 import {
   AudioModule,
@@ -30,6 +31,8 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { MessageReactionsPopup } from "@/src/components/MessageReactionsPopup";
+import { RoomMomentCard } from "@/src/components/RoomMomentCard";
 import { VoiceBubble } from "@/src/components/VoiceBubble";
 import { countryToCode } from "@/src/constants/countries";
 import { langName } from "@/src/constants/languages";
@@ -127,6 +130,13 @@ export default function ChatScreen() {
   const [panel, setPanel] = useState<null | "attach" | "emoji" | "templates">(
     null,
   );
+  // Reaction popup state — anchor is measured on long press so we can point
+  // the picker to the exact bubble on-screen (Instagram-style).
+  const [reactionMsg, setReactionMsg] = useState<Message | null>(null);
+  const [reactionAnchor, setReactionAnchor] = useState<
+    { x: number; y: number; width: number; height: number } | null
+  >(null);
+  const bubbleRefs = useRef<Record<string, View | null>>({});
   const listRef = useRef<FlatList<Message>>(null);
   // Keeps the list pinned to the newest message. True until the reader
   // scrolls up to browse history, so we never yank them back down.
@@ -174,10 +184,99 @@ export default function ChatScreen() {
           );
           api.post(`/chats/${id}/read`).catch(() => {});
         }
+        if (
+          event.type === "message_reaction" &&
+          event.conversation_id === id &&
+          event.message
+        ) {
+          const updated = event.message as Message;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === updated.id ? { ...m, reactions: updated.reactions } : m)),
+          );
+        }
       },
       [id],
     ),
   );
+
+  // Open reaction picker anchored to the tapped bubble.
+  const openReactionPopup = (msg: Message) => {
+    const node = bubbleRefs.current[msg.id];
+    if (!node) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    // measureInWindow gives screen-space coordinates → perfect for a fullscreen Modal.
+    (node as any).measureInWindow?.(
+      (x: number, y: number, width: number, height: number) => {
+        setReactionAnchor({ x, y, width, height });
+        setReactionMsg(msg);
+      },
+    );
+  };
+
+  const myReactionFor = (msg: Message): string | undefined => {
+    if (!user) return undefined;
+    return msg.reactions?.find((r) => r.user_ids.includes(user.id))?.emoji;
+  };
+
+  const toggleReaction = async (emoji: string) => {
+    if (!reactionMsg) return;
+    const target = reactionMsg;
+    setReactionMsg(null);
+    setReactionAnchor(null);
+    // Optimistic update so the bubble reacts instantly.
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== target.id) return m;
+        const uid = user?.id || "";
+        const currentEmoji = m.reactions?.find((r) => r.user_ids.includes(uid))?.emoji;
+        const cleared = (m.reactions || [])
+          .map((r) => ({ ...r, user_ids: r.user_ids.filter((x) => x !== uid), count: r.user_ids.filter((x) => x !== uid).length }))
+          .filter((r) => r.count > 0);
+        if (currentEmoji === emoji) {
+          return { ...m, reactions: cleared };
+        }
+        const existing = cleared.find((r) => r.emoji === emoji);
+        const next = existing
+          ? cleared.map((r) =>
+              r.emoji === emoji ? { ...r, user_ids: [...r.user_ids, uid], count: r.count + 1 } : r,
+            )
+          : [...cleared, { emoji, user_ids: [uid], count: 1 }];
+        return { ...m, reactions: next };
+      }),
+    );
+    try {
+      await api.post(`/chats/${id}/messages/${target.id}/react`, { emoji });
+    } catch (e) {
+      // Rollback would be complex; refetch instead.
+      try {
+        const msgs = await api.get<Message[]>(`/chats/${id}/messages`);
+        setMessages(msgs);
+      } catch {}
+    }
+  };
+
+  const handleReactionMenuAction = async (
+    action: "reply" | "copy" | "delete" | "translate" | "correct",
+  ) => {
+    if (!reactionMsg) return;
+    const target = reactionMsg;
+    setReactionMsg(null);
+    setReactionAnchor(null);
+    if (action === "copy" && target.text) {
+      await Clipboard.setStringAsync(target.text);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } else if (action === "translate") {
+      translate(target);
+    } else if (action === "correct") {
+      correctMessage(target);
+    } else if (action === "reply") {
+      // Prefill draft with a quote so users can respond in context.
+      const quoted = target.text ? `↳ ${target.text.slice(0, 80)}\n` : "";
+      setDraft((d) => (d.startsWith(quoted) ? d : quoted + d));
+    } else if (action === "delete") {
+      notify("Delete", "Message deletion is coming soon.");
+    }
+  };
 
   useEffect(() => {
     if (messages.length > 0 && stickToEnd.current) {
@@ -765,8 +864,13 @@ export default function ChatScreen() {
               const correction = corrections[item.id];
               const isVoice = item.type === "voice" && item.audio_id;
               const isImage = item.type === "image" && item.image_id;
+              const isRoomShare = item.type === "room" && item.room;
               const prev = messages[index - 1];
               const showDate = !prev || !sameDay(prev.created_at, item.created_at);
+              const setBubbleRef = (node: View | null) => {
+                bubbleRefs.current[item.id] = node;
+              };
+              const openReactions = () => openReactionPopup(item);
               return (
                 <>
                   {showDate && (
@@ -774,6 +878,64 @@ export default function ChatScreen() {
                       {dateSeparator(item.created_at)}
                     </Text>
                   )}
+                  {isRoomShare ? (
+                    <View
+                      style={[
+                        styles.bubbleRow,
+                        mine ? styles.rowMine : styles.rowTheirs,
+                      ]}
+                    >
+                      {!mine && (
+                        <Avatar
+                          name={partner?.name || ""}
+                          url={partner?.avatar_url}
+                          size={32}
+                          flagCode={countryToCode(partner?.country)}
+                        />
+                      )}
+                      <Pressable
+                        ref={setBubbleRef}
+                        onLongPress={openReactions}
+                        delayLongPress={220}
+                        style={styles.roomShareBubble}
+                      >
+                        <RoomMomentCard
+                          testID={`room-share-${item.id}`}
+                          compact
+                          room={item.room!}
+                          onPress={() => {
+                            if (item.room?.id && item.room?.is_live) {
+                              router.push(`/room/${item.room.id}`);
+                            }
+                          }}
+                        />
+                        <View style={styles.bubbleFooter}>
+                          <Text
+                            style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}
+                          >
+                            {clockTime(item.created_at)}
+                          </Text>
+                        </View>
+                        {item.reactions && item.reactions.length > 0 && (
+                          <View
+                            style={[
+                              styles.reactionBadgeRow,
+                              mine ? styles.reactionBadgeMine : styles.reactionBadgeTheirs,
+                            ]}
+                          >
+                            {item.reactions.map((r) => (
+                              <View key={r.emoji} style={styles.reactionBadge}>
+                                <Text style={styles.reactionBadgeEmoji}>{r.emoji}</Text>
+                                {r.count > 1 && (
+                                  <Text style={styles.reactionBadgeCount}>{r.count}</Text>
+                                )}
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </Pressable>
+                    </View>
+                  ) : (
                   <View
                     style={[styles.bubbleRow, mine ? styles.rowMine : styles.rowTheirs]}
                   >
@@ -785,7 +947,10 @@ export default function ChatScreen() {
                         flagCode={countryToCode(partner?.country)}
                       />
                     )}
-                    <View
+                    <Pressable
+                      ref={setBubbleRef}
+                      onLongPress={openReactions}
+                      delayLongPress={220}
                       style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}
                     >
                     {isVoice ? (
@@ -915,8 +1080,26 @@ export default function ChatScreen() {
                         </View>
                       )}
                     </View>
+                    {item.reactions && item.reactions.length > 0 && (
+                      <View
+                        style={[
+                          styles.reactionBadgeRow,
+                          mine ? styles.reactionBadgeMine : styles.reactionBadgeTheirs,
+                        ]}
+                      >
+                        {item.reactions.map((r) => (
+                          <View key={r.emoji} style={styles.reactionBadge}>
+                            <Text style={styles.reactionBadgeEmoji}>{r.emoji}</Text>
+                            {r.count > 1 && (
+                              <Text style={styles.reactionBadgeCount}>{r.count}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </Pressable>
                   </View>
-                  </View>
+                  )}
                 </>
               );
             }}
@@ -1164,6 +1347,19 @@ export default function ChatScreen() {
           </>
         )}
       </KeyboardAvoidingView>
+      <MessageReactionsPopup
+        visible={!!reactionMsg}
+        anchor={reactionAnchor}
+        mine={reactionMsg ? reactionMsg.sender_id === user?.id : false}
+        hasText={!!reactionMsg?.text && reactionMsg?.type !== "voice" && reactionMsg?.type !== "image"}
+        currentReaction={reactionMsg ? myReactionFor(reactionMsg) : undefined}
+        onClose={() => {
+          setReactionMsg(null);
+          setReactionAnchor(null);
+        }}
+        onReact={toggleReaction}
+        onAction={handleReactionMenuAction}
+      />
     </SafeAreaView>
   );
 }
@@ -1500,6 +1696,50 @@ const makeStyles = (colors: ThemeColors) =>
     },
     bubbleTimeMine: {
       color: "rgba(255,255,255,0.8)",
+    },
+    roomShareBubble: {
+      maxWidth: "82%",
+      padding: 4,
+      borderRadius: radius.md,
+      gap: 4,
+    },
+    reactionBadgeRow: {
+      flexDirection: "row",
+      gap: 4,
+      marginTop: -6,
+      marginBottom: 2,
+      alignSelf: "flex-start",
+    },
+    reactionBadgeMine: {
+      alignSelf: "flex-end",
+      marginRight: 4,
+    },
+    reactionBadgeTheirs: {
+      alignSelf: "flex-start",
+      marginLeft: 4,
+    },
+    reactionBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      gap: 3,
+      shadowColor: "#000",
+      shadowOpacity: 0.06,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 1 },
+    },
+    reactionBadgeEmoji: {
+      fontSize: 13,
+    },
+    reactionBadgeCount: {
+      fontFamily: fonts.textSemi,
+      fontSize: 11,
+      color: colors.onSurfaceSecondary,
     },
     recordingBar: {
       flexDirection: "row",

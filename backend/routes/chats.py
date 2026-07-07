@@ -12,6 +12,7 @@ from models import (
     ConversationCreate,
     ImageMessageCreate,
     MessageCreate,
+    MessageReactionCreate,
     VoiceMessageCreate,
     _vip_active,
     apply_privacy,
@@ -37,18 +38,73 @@ async def _push_new_message(partner_id: str, muted: bool, sender_name: str, prev
         logger.warning(f"Push notification failed (non-blocking): {e}")
 
 
+async def _room_share_card(room_id: str | None) -> dict | None:
+    """Live snapshot of a voice room for a chat card — matches Moments card shape.
+    Includes host so the card can render host avatar + name inline. Computed at
+    read-time so it always reflects whether the room is still ongoing."""
+    if not room_id:
+        return None
+    room_doc = await rooms_col.find_one({"_id": room_id})
+    if not room_doc:
+        return {"id": room_id, "is_live": False}
+    host_id = room_doc.get("host_id")
+    host_card = None
+    if host_id:
+        host_doc = await users_col.find_one({"_id": host_id})
+        if host_doc:
+            host_card = user_card(host_doc)
+    if not room_doc.get("is_live"):
+        return {
+            "id": room_id,
+            "title": room_doc.get("title"),
+            "topic": room_doc.get("topic"),
+            "language": room_doc.get("language"),
+            "host": host_card,
+            "is_live": False,
+        }
+    return {
+        "id": room_doc["_id"],
+        "title": room_doc["title"],
+        "topic": room_doc.get("topic"),
+        "mode": room_doc.get("mode", "chat"),
+        "language": room_doc["language"],
+        "languages": room_doc.get("languages") or [room_doc["language"]],
+        "member_count": len(room_doc.get("members", {})),
+        "host": host_card,
+        "is_live": True,
+    }
+
+
 def message_public(doc: dict) -> dict:
+    reactions_raw = doc.get("reactions") or {}
+    # {user_id: emoji} → aggregate as [{emoji, count, user_ids}] so the client
+    # can render badges (with count) grouped by emoji.
+    grouped: dict[str, dict] = {}
+    for uid, emoji in reactions_raw.items():
+        g = grouped.setdefault(emoji, {"emoji": emoji, "count": 0, "user_ids": []})
+        g["count"] += 1
+        g["user_ids"].append(uid)
     return {
         "id": doc["_id"],
         "conversation_id": doc["conversation_id"],
         "sender_id": doc["sender_id"],
-        "text": doc["text"],
+        "text": doc.get("text", ""),
         "type": doc.get("type", "text"),
         "audio_id": doc.get("audio_id"),
         "image_id": doc.get("image_id"),
         "duration_ms": doc.get("duration_ms"),
+        "room_id": doc.get("room_id"),
+        "reactions": list(grouped.values()),
         "created_at": doc["created_at"],
     }
+
+
+async def message_public_async(doc: dict) -> dict:
+    """Same as message_public but expands room card for `room` messages."""
+    m = message_public(doc)
+    if m.get("type") == "room" and m.get("room_id"):
+        m["room"] = await _room_share_card(m["room_id"])
+    return m
 
 
 async def conversation_public(
@@ -196,7 +252,7 @@ async def list_messages(conversation_id: str, current_user: CurrentUser):
         .sort("created_at", 1)
         .to_list(500)
     )
-    return [message_public(d) for d in docs]
+    return [await message_public_async(d) for d in docs]
 
 
 @router.post("/{conversation_id}/messages", status_code=201)
@@ -207,18 +263,42 @@ async def send_message(conversation_id: str, body: MessageCreate, current_user: 
     partner_id = next(p for p in conv["participant_ids"] if p != current_user["_id"])
     await ensure_not_blocked(current_user, partner_id)
     now = datetime.now(timezone.utc).isoformat()
-    doc = {
-        "_id": str(uuid.uuid4()),
-        "conversation_id": conversation_id,
-        "sender_id": current_user["_id"],
-        "text": body.text,
-        "created_at": now,
-    }
+
+    # A "room share" message drops a rich voice-room card into the chat. It
+    # doesn't require any text body — the card itself tells the whole story.
+    is_room_share = bool(body.room_id)
+    if is_room_share:
+        room_doc = await rooms_col.find_one({"_id": body.room_id})
+        if not room_doc:
+            raise HTTPException(status_code=404, detail="Voice room not found.")
+        preview_text = f"🎙️ {room_doc.get('title') or 'Voice room'}"
+        doc = {
+            "_id": str(uuid.uuid4()),
+            "conversation_id": conversation_id,
+            "sender_id": current_user["_id"],
+            "text": (body.text or "").strip() or preview_text,
+            "type": "room",
+            "room_id": body.room_id,
+            "created_at": now,
+        }
+    else:
+        text = (body.text or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Message text is required.")
+        doc = {
+            "_id": str(uuid.uuid4()),
+            "conversation_id": conversation_id,
+            "sender_id": current_user["_id"],
+            "text": text,
+            "created_at": now,
+        }
+
     await messages_col.insert_one(doc)
-    msg = message_public(doc)
+    msg = await message_public_async(doc)
+    preview = doc["text"]
     text_update: dict = {
         "$set": {
-            "last_message": {"text": body.text, "sender_id": current_user["_id"], "created_at": now},
+            "last_message": {"text": preview, "sender_id": current_user["_id"], "created_at": now},
             "updated_at": now,
         },
     }
@@ -238,9 +318,50 @@ async def send_message(conversation_id: str, body: MessageCreate, current_user: 
         partner_id,
         bool(conv.get("muted", {}).get(partner_id)),
         current_user.get("name") or "New message",
-        body.text,
+        preview,
     )
     return msg
+
+
+@router.post("/{conversation_id}/messages/{message_id}/react")
+async def toggle_reaction(
+    conversation_id: str,
+    message_id: str,
+    body: MessageReactionCreate,
+    current_user: CurrentUser,
+):
+    """Toggle a reaction emoji on a message. Sending the same emoji again clears
+    it; a different emoji replaces the previous one. One reaction per user per
+    message — HelloTalk/Instagram style."""
+    await get_owned_conversation(conversation_id, current_user["_id"])
+    msg_doc = await messages_col.find_one({"_id": message_id, "conversation_id": conversation_id})
+    if not msg_doc:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    reactions = dict(msg_doc.get("reactions") or {})
+    uid = current_user["_id"]
+    current = reactions.get(uid)
+    if current == body.emoji:
+        reactions.pop(uid, None)
+    else:
+        reactions[uid] = body.emoji
+    await messages_col.update_one(
+        {"_id": message_id}, {"$set": {"reactions": reactions}}
+    )
+    updated = {**msg_doc, "reactions": reactions}
+    msg_out = await message_public_async(updated)
+    # Notify partner in real-time so their bubble updates instantly.
+    conv = await get_owned_conversation(conversation_id, current_user["_id"])
+    partner_id = next((p for p in conv["participant_ids"] if p != current_user["_id"]), None)
+    if partner_id:
+        await manager.send_to_user(
+            partner_id,
+            {
+                "type": "message_reaction",
+                "conversation_id": conversation_id,
+                "message": msg_out,
+            },
+        )
+    return msg_out
 
 
 @router.post("/{conversation_id}/mute")

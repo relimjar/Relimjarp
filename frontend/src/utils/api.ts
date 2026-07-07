@@ -96,15 +96,24 @@ export interface Visitor extends User {
   visited_at: string;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  user_ids: string[];
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
   text: string;
-  type?: "text" | "voice" | "image";
+  type?: "text" | "voice" | "image" | "room";
   audio_id?: string | null;
   image_id?: string | null;
   duration_ms?: number | null;
+  room_id?: string | null;
+  room?: RoomCardInfo | null;
+  reactions?: MessageReaction[];
   created_at: string;
 }
 
@@ -125,6 +134,7 @@ export interface RoomCardInfo {
   language?: string;
   languages?: string[];
   member_count?: number;
+  host?: User | null;
   is_live: boolean;
 }
 

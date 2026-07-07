@@ -48,7 +48,12 @@ class AvatarUpload(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    text: str = Field(min_length=1, max_length=2000)
+    text: str = Field(default="", max_length=2000)
+    room_id: Optional[str] = None
+
+
+class MessageReactionCreate(BaseModel):
+    emoji: str = Field(min_length=1, max_length=8)
 
 
 class ConversationCreate(BaseModel):

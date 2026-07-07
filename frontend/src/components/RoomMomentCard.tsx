@@ -3,68 +3,97 @@ import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Avatar } from "@/src/components/Avatar";
 import { FlagIcon } from "@/src/components/FlagIcon";
 import { SpeakingBars } from "@/src/components/SpeakingBars";
+import { countryToCode } from "@/src/constants/countries";
 import { langName } from "@/src/constants/languages";
 import { fonts, radius, spacing } from "@/src/theme";
 import { RoomCardInfo } from "@/src/utils/api";
 
 /**
- * Rich "live voice room" card used both in the Moments feed and the single
- * moment detail page — same visuals everywhere: colorful gradient, a live
- * sound-wave animation while the room is ongoing, and a "Room ended" state
- * once the host closes it (no longer tappable).
+ * Rich "live voice room" card used everywhere a room is embedded — Moments
+ * feed, single moment detail, chat messages. Same visuals so users get an
+ * instantly-recognisable "this is a voice room" card wherever they see it:
+ * colorful gradient, LIVE bars while the room is ongoing, host avatar + name
+ * inline, language flag, member count, and a big Join button.
  */
 export const RoomMomentCard = ({
   room,
   onPress,
   testID,
+  compact = false,
 }: {
   room: RoomCardInfo;
   onPress: () => void;
   testID?: string;
-}) => (
-  <Pressable testID={testID} disabled={!room.is_live} onPress={onPress}>
-    <LinearGradient
-      colors={room.is_live ? ["#6D5AE8", "#4B3F87"] : ["#9CA3AF", "#6B7280"]}
-      style={styles.card}
-    >
-      <View style={styles.top}>
-        {room.is_live ? (
-          <View style={styles.liveBadge}>
-            <SpeakingBars />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-        ) : (
-          <View style={styles.liveBadge}>
-            <Ionicons name="mic-off" size={11} color="#FFFFFF" />
-            <Text style={styles.liveText}>ROOM ENDED</Text>
+  compact?: boolean;
+}) => {
+  const host = room.host;
+  return (
+    <Pressable testID={testID} disabled={!room.is_live} onPress={onPress}>
+      <LinearGradient
+        colors={room.is_live ? ["#6D5AE8", "#4B3F87"] : ["#9CA3AF", "#6B7280"]}
+        style={[styles.card, compact && styles.cardCompact]}
+      >
+        <View style={styles.top}>
+          {room.is_live ? (
+            <View style={styles.liveBadge}>
+              <SpeakingBars />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          ) : (
+            <View style={styles.liveBadge}>
+              <Ionicons name="mic-off" size={11} color="#FFFFFF" />
+              <Text style={styles.liveText}>ROOM ENDED</Text>
+            </View>
+          )}
+          {room.language ? (
+            <View style={styles.langBadge}>
+              <FlagIcon code={room.language} size={11} />
+              <Text style={styles.langText}>{langName(room.language)}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {host && (
+          <View style={styles.hostRow}>
+            <Avatar
+              name={host.name}
+              url={host.avatar_url}
+              size={compact ? 34 : 38}
+              flagCode={countryToCode(host.country)}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hostName} numberOfLines={1}>
+                {host.name}
+              </Text>
+              <Text style={styles.hostRole} numberOfLines={1}>
+                Host{room.topic ? ` · ${room.topic}` : ""}
+              </Text>
+            </View>
           </View>
         )}
-        {room.language ? (
-          <View style={styles.langBadge}>
-            <FlagIcon code={room.language} size={11} />
-            <Text style={styles.langText}>{langName(room.language)}</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {room.title || "Voice room"}
-      </Text>
-      <View style={styles.bottom}>
-        <Ionicons name="people" size={13} color="rgba(255,255,255,0.85)" />
-        <Text style={styles.members}>
-          {room.member_count || 0} {room.is_live ? "listening now" : "were in this room"}
+
+        <Text style={styles.title} numberOfLines={2}>
+          {room.title || "Voice room"}
         </Text>
-        {room.is_live && (
-          <View style={styles.joinBtn}>
-            <Text style={styles.joinText}>Join</Text>
-          </View>
-        )}
-      </View>
-    </LinearGradient>
-  </Pressable>
-);
+        <View style={styles.bottom}>
+          <Ionicons name="people" size={13} color="rgba(255,255,255,0.85)" />
+          <Text style={styles.members}>
+            {room.member_count || 0}{" "}
+            {room.is_live ? "listening now" : "were in this room"}
+          </Text>
+          {room.is_live && (
+            <View style={styles.joinBtn}>
+              <Text style={styles.joinText}>Join</Text>
+            </View>
+          )}
+        </View>
+      </LinearGradient>
+    </Pressable>
+  );
+};
 
 const styles = StyleSheet.create({
   card: {
@@ -72,10 +101,31 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
+  cardCompact: {
+    padding: spacing.md,
+    gap: 8,
+  },
   top: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  hostRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 2,
+  },
+  hostName: {
+    fontFamily: fonts.textBold,
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+  hostRole: {
+    fontFamily: fonts.textSemi,
+    fontSize: 11,
+    color: "rgba(255,255,255,0.78)",
+    marginTop: 1,
   },
   liveBadge: {
     flexDirection: "row",

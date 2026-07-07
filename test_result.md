@@ -680,17 +680,50 @@ frontend:
           agent: "main"
           comment: "Verified via screenshots (admin@lingua.app login): login card renders, Overview hero shows 20 total users + colored stat grid + signup chart, Users tab lists 20 users with search/badges/expandable rows, Rooms tab shows 3 LIVE rooms with Force end/Delete + 1 ENDED, Broadcast tab form renders with disabled-until-filled send button. Backend for all new endpoints passed 16/16 via deep_testing_backend_v2."
 
+backend:
+  - task: "POST /api/chats/{cid}/messages/{mid}/react - toggle emoji reaction"
+    implemented: true
+    working: true
+    file: "backend/routes/chats.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Round 12 feature: Toggle emoji reactions on chat messages. Same emoji clears it, different emoji replaces. Returns aggregated reactions [{emoji, count, user_ids}]. Real-time WS notification to partner."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL 10 TESTS PASSED. (1) Mei+Diego login ✅ (2) Mei sends text message ✅ (3) Mei reacts ❤️ → reactions=[{emoji:'❤️',count:1,user_ids:[mei]}] ✅ (4) Mei reacts ❤️ again → reactions cleared (empty array) ✅ (5) Mei reacts 😂 → replaces, reactions=[{emoji:'😂',count:1,user_ids:[mei]}] ✅ (6) Diego reacts 😂 → reactions=[{emoji:'😂',count:2,user_ids:[mei,diego]}] ✅ (7) Diego reacts 🔥 → reactions has 2 entries [{emoji:'😂',count:1,user_ids:[mei]},{emoji:'🔥',count:1,user_ids:[diego]}] ✅ (8) GET messages shows same aggregated reactions ✅ (9) Unauth call → 401 ✅ (10) Unknown message id → 404 'Message not found' ✅. Toggle logic working perfectly, aggregation correct, auth enforced."
+  
+  - task: "POST /api/chats/{cid}/messages accepts room_id (room-share card message)"
+    implemented: true
+    working: true
+    file: "backend/routes/chats.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Round 12 feature: Send voice room share cards in chat. Accepts room_id, creates type='room' message with auto-filled text '🎙️ {room_title}'. Returns live room snapshot with host, member_count, is_live. Computed at read-time via _room_share_card."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL 8 TESTS PASSED. (1) Mei creates room 'Chat Share Test' ✅ (2) Mei sends room card message with room_id ✅ (3) Response verified: type='room', room_id correct, text='🎙️ Chat Share Test', room field contains {id, title='Chat Share Test', is_live=true, member_count=1, language='en', host={id,name,avatar_url}} ✅ (4) GET messages returns same room field ✅ (5) last_message on conversation reflects preview text '🎙️ Chat Share Test' ✅ (6) Unknown room_id → 404 'Voice room not found' ✅ (7) Backward compat: text-only message returns type='text' with no room field ✅ (8) Empty text without room_id → 400 ✅. Room share cards working perfectly, live data computed correctly, backward compatible."
+
 metadata:
   created_by: "main_agent"
-  version: "1.13"
-  test_sequence: 12
-  run_ui: false
+  version: "1.15"
+  test_sequence: 14
+  run_ui: true
 
 test_plan:
   current_focus:
-    - "GET /api/admin/rooms + POST /api/admin/rooms/{id}/end + DELETE /api/admin/rooms/{id}"
-    - "POST /api/admin/broadcast - announcement to all users"
-    - "GET /api/admin/signups?days=7 - daily signup series"
+    - "Chat: long-press message → Instagram-style reaction popup + Reply/Copy/Translate menu"
+    - "Chat: room-share message renders as RoomMomentCard with host avatar"
+    - "Voice room: audience 3-dot switcher panel now narrower (70%, max 320)"
+    - "Voice room: switcher panel top icons redesigned (purple Share, transparent Minimize, red Power)"
+    - "Voice room: Share to Chat sends room-share message (room_id) not text"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -700,6 +733,10 @@ agent_communication:
       message: "Implemented 3 new admin backend endpoints for Round 9 admin console redesign. Please test: (1) GET /api/admin/rooms - list all rooms (live first) with host details, member_count, is_live, is_private. Test as admin (200), non-admin (403), no auth (401). (2) POST /api/admin/rooms/{id}/end - force-end live room, sets is_live=false. Test with real room, unknown room (404). (3) DELETE /api/admin/rooms/{id} - delete room doc, test first delete (200), second delete (404). (4) GET /api/admin/signups?days=7 - returns [{date, count}] for last N days, test days=7 (7 entries), days=50 (clamps to 30). (5) POST /api/admin/broadcast - send announcement to all users with {title, message}, returns {sent:n}. Test as admin (201), non-admin (403), missing title (422), verify notification appears in mei's feed with type='announcement'. (6) Smoke tests: GET /api/admin/stats (10 fields), GET /api/admin/users (list), GET /api/admin/market (items), GET /api/admin/config (config). Use admin@lingua.app / Admin1234! and mei@demo.com / Demo1234!. Do NOT test frontend."
     - agent: "testing"
       message: "✅ ALL BACKEND TESTS PASSED (16/16). Admin console backend endpoints fully functional. Test summary: TEST 1 - GET /api/admin/rooms (3/3 passed): As admin returns 200 with array of 4 rooms (3 live, 1 ended), live rooms sorted first ✅ As non-admin returns 403 ✅ Without auth returns 401 ✅. TEST 2 - POST /api/admin/rooms/{id}/end (2/2 passed): Created room as mei, admin force-ended it, returns {ok:true, is_live:false}, verified in admin rooms list ✅ Unknown room returns 404 ✅. TEST 3 - DELETE /api/admin/rooms/{id} (1/1 passed): First delete returns 200 {ok:true}, second delete returns 404 ✅. TEST 4 - GET /api/admin/signups (2/2 passed): days=7 returns exactly 7 entries with {date, count}, dates ascending, ending today (2026-07-05 UTC) ✅ days=50 clamps to 30 entries ✅. TEST 5 - POST /api/admin/broadcast (4/4 passed): As admin returns 201 with {sent:20} ✅ As non-admin returns 403 ✅ Missing title returns 422 ✅ Notification appears in mei's feed with type='announcement', text contains 'Test Broadcast', actor name is 'Admin' ✅. TEST 6 - Smoke tests (4/4 passed): GET /api/admin/stats returns all 10 fields ✅ GET /api/admin/users returns list of 20 users ✅ GET /api/admin/market returns 13 items ✅ GET /api/admin/config returns config with 5 keys ✅. No critical issues found. All admin endpoints working correctly. Ready for main agent to summarize and finish."
+    - agent: "main"
+      message: "Round 12: Implemented 2 new chat backend features. Please test: (A) POST /api/chats/{cid}/messages/{mid}/react - toggle emoji reaction. Test: mei+diego login, create conversation, mei sends message, mei reacts ❤️ (verify reactions=[{emoji:'❤️',count:1,user_ids:[mei]}]), mei reacts ❤️ again (cleared), mei reacts 😂 (replaces), diego reacts 😂 (count:2), diego reacts 🔥 (2 entries), GET messages (same reactions), unauth (401), unknown msg (404). (B) POST /api/chats/{cid}/messages accepts room_id. Test: mei creates room 'Chat Share Test', send room card (verify type='room', text='🎙️ Chat Share Test', room field with {id,title,is_live=true,member_count>=1,language='en',host}), GET messages (same room field), verify last_message, unknown room_id (404), backward compat text message (type='text'), empty text (400). Use mei@demo.com / Demo1234! and diego@demo.com / Demo1234!. Do NOT test frontend."
+    - agent: "testing"
+      message: "✅ ROUND 12 BACKEND TESTS COMPLETED - ALL TESTS PASSED (18/18). Feature A - Message Reactions (10/10 passed): (1) Mei+Diego login ✅ (2) Mei sends text message ✅ (3) Mei reacts ❤️ → reactions=[{emoji:'❤️',count:1,user_ids:[mei]}] ✅ (4) Mei reacts ❤️ again → reactions cleared ✅ (5) Mei reacts 😂 → replaces ✅ (6) Diego reacts 😂 → count:2 ✅ (7) Diego reacts 🔥 → 2 entries ✅ (8) GET messages shows same reactions ✅ (9) Unauth → 401 ✅ (10) Unknown msg → 404 'Message not found' ✅. Feature B - Room-Share Messages (8/8 passed): (1) Mei creates room 'Chat Share Test' ✅ (2) Send room card message ✅ (3) Response verified: type='room', room_id correct, text='🎙️ Chat Share Test', room field complete with {id,title,is_live=true,member_count=1,language='en',host={id,name,avatar_url}} ✅ (4) GET messages returns same room field ✅ (5) last_message reflects preview text ✅ (6) Unknown room_id → 404 'Voice room not found' ✅ (7) Backward compat: text message returns type='text' ✅ (8) Empty text → 400 ✅. Both features working perfectly. Toggle logic correct, aggregation accurate, room cards compute live data, backward compatible. No critical issues found. Ready for main agent to summarize and finish."
 
 ## Test Run — User Feedback Round 8 (top gifters ranked in room header)
 user_problem_statement: In the voice room, when people send gifts, show the gifters' list next to the three-dot menu (top-right). Rank them 1, 2, 3 by total gift amount.
@@ -845,7 +882,7 @@ agent_communication:
     - agent: "testing"
       message: "✅ COMPREHENSIVE UI TESTING COMPLETED (9/12 tests passed, 3 failed). Tested on mobile viewport (390x844) with mei@demo.com / Demo1234!. SUMMARY: TEST 1 (Voice Room Redesign - HIGHEST PRIORITY): ❌ 2 FAILED, ✅ 3 PASSED. VERIFY A FAILED - Background has gradient banding (2 color stops), not solid uniform. VERIFY B FAILED - Megaphone icon not detected in Notice row. VERIFY C PASSED - Chat messages show avatar+flag+dark bubble+name+host chip. VERIFY D PASSED - All bottom controls correct (rounded-square mic button, circular icon buttons with NEW badge). VERIFY E PASSED - Quick replies with X button working. TEST 2 (Edit Profile Inline Editing): ✅ ALL 3 PASSED. Name/Hometown inline editing works (TextInput appears IN PLACE, no modal). MBTI opens bottom-sheet picker (not inline). TEST 3 (Voice Introduction): ✅ PASSED. Voice bio bubble with play+delete+rerecord buttons all visible. TEST 4 (Profile Preview): ✅ 2 PASSED, ❌ 1 FAILED. VERIFY A PASSED - Voice bubble under bio. VERIFY B FAILED - Room card shows 'ROOM ENDEDVoice room0 were in this room' instead of 'Mandarin Practice Lounge'. VERIFY C PASSED - Like button increments count. CRITICAL ISSUES: (1) Voice room background uses LinearGradient with duplicate colors but still renders gradient - need solid backgroundColor instead. (2) Room card title incorrect for ended rooms on profile moments."
     - agent: "user"
-      message: "Quick re-verification of 3 fixes in the LinguaConnect Expo web app at https://adapter-bridge.preview.emergentagent.com (mobile viewport 390x844). EXECUTE the browser tests — do not stop after reading files. Login: welcome → 'I already have an account' → mei@demo.com / Demo1234! → 'Log In'. Close any 'Day X Streak!' modal via 'Awesome!' if it appears. FIX 1 — Voice room uniform background (frontend/app/room/[id].tsx): Voice tab (testid tab-voice) → open live room 'Brand Polish Lounge'. VERIFY the entire screen background is ONE solid colour (#413389): the stage/member area and the chat area must have the SAME background — previously the chat section had a darker overlay (rgba(0,0,0,0.18)); that overlay must be gone. The room now renders in a plain View (no LinearGradient element). Sample pixel colours at e.g. y=250 (stage area) and y=600 (chat area) at x=195 — they must match. FIX 2 — Notice megaphone icon (frontend/app/room/[id].tsx): In the same room, VERIFY testid room-notice-icon exists (purple circle with megaphone) to the LEFT of the dark Notice bubble containing the 'Notice' pill. Also the system message 'Welcome Mei Lin to the room!' should have the same megaphone circle on its left. FIX 3 — Ended room card shows real title (backend/routes/moments.py + RoomMomentCard): Go back, open Moments tab (testid tab-moments). Find the room-share moment card. VERIFY it shows the actual room title 'Mandarin Practice Lounge' with a 'ROOM ENDED' badge (grey card) — it must NOT say just 'Voice room'. Also open Mei's profile Moments tab (Me tab → tap the profile header row → Edit Profile → Preview → Moments tab, or navigate via Connect card): verify the same card shows 'Mandarin Practice Lounge' there too (testid starting profile-moment-room-card-). If navigation is hard, verifying it on the main Moments feed is sufficient plus the profile if reachable. Report pass/fail per fix with screenshots and console errors; update test_result.md."
+      message: "Quick re-verification of 3 fixes in the LinguaConnect Expo web app at https://voice-room-ui.preview.emergentagent.com (mobile viewport 390x844). EXECUTE the browser tests — do not stop after reading files. Login: welcome → 'I already have an account' → mei@demo.com / Demo1234! → 'Log In'. Close any 'Day X Streak!' modal via 'Awesome!' if it appears. FIX 1 — Voice room uniform background (frontend/app/room/[id].tsx): Voice tab (testid tab-voice) → open live room 'Brand Polish Lounge'. VERIFY the entire screen background is ONE solid colour (#413389): the stage/member area and the chat area must have the SAME background — previously the chat section had a darker overlay (rgba(0,0,0,0.18)); that overlay must be gone. The room now renders in a plain View (no LinearGradient element). Sample pixel colours at e.g. y=250 (stage area) and y=600 (chat area) at x=195 — they must match. FIX 2 — Notice megaphone icon (frontend/app/room/[id].tsx): In the same room, VERIFY testid room-notice-icon exists (purple circle with megaphone) to the LEFT of the dark Notice bubble containing the 'Notice' pill. Also the system message 'Welcome Mei Lin to the room!' should have the same megaphone circle on its left. FIX 3 — Ended room card shows real title (backend/routes/moments.py + RoomMomentCard): Go back, open Moments tab (testid tab-moments). Find the room-share moment card. VERIFY it shows the actual room title 'Mandarin Practice Lounge' with a 'ROOM ENDED' badge (grey card) — it must NOT say just 'Voice room'. Also open Mei's profile Moments tab (Me tab → tap the profile header row → Edit Profile → Preview → Moments tab, or navigate via Connect card): verify the same card shows 'Mandarin Practice Lounge' there too (testid starting profile-moment-room-card-). If navigation is hard, verifying it on the main Moments feed is sufficient plus the profile if reachable. Report pass/fail per fix with screenshots and console errors; update test_result.md."
     - agent: "testing"
       message: "RE-VERIFICATION COMPLETED (mobile 390x844, mei@demo.com). CODE REVIEW SHOWS ALL 3 FIXES CORRECTLY IMPLEMENTED: ✅ FIX 1 - room/[id].tsx uses solid BG_COLORS with View backgroundColor (NOT LinearGradient), chatSection transparent. ✅ FIX 2 - megaphone icon with testID 'room-notice-icon' in purple circle, positioned LEFT of Notice bubble. ✅ FIX 3 - backend _room_card returns title/topic/language for ended rooms, RoomMomentCard displays room.title. BROWSER TEST RESULTS: ❌ NAVIGATION ISSUE - Could not enter 'Brand Polish Lounge' room (clicked but remained on Voice Rooms list). Gradient detected was from room LIST cards (expected), not room interior. No purple circles found because test didn't enter room. No ended room cards found in Moments feed (0 detected). CONCLUSION: All 3 fixes appear CORRECTLY IMPLEMENTED in code but browser automation could not fully verify due to navigation/timing issues preventing room entry. STUCK TASKS: Both voice room redesign and profile moments tasks now marked as stuck (stuck_count: 2). RECOMMENDATION: Main agent should (1) Manually verify fixes work by opening app, (2) Check if 'Brand Polish Lounge' room is joinable, (3) Verify mei@demo.com has seeded ended room moment in DB for 'Mandarin Practice Lounge', (4) Consider if room navigation requires different interaction (long press, specific gesture, etc.)."
 
@@ -1166,3 +1203,80 @@ agent_communication:
     - agent: "testing"
       message: "✅ ALL BACKEND TESTS PASSED (8/8). POST /api/rooms/{room_id}/transfer-host endpoint fully functional. Test summary: (1) ✅ Room creation and join working. (2) ✅ Non-host gets 403 'Only the host can transfer the room'. (3) ✅ Transfer to non-existent user returns 404 'Member not in room'. (4) ✅ Transfer to self returns 400 'You are already the host'. (5) ✅ Successful transfer: mei→diego, host becomes Diego, diego role='host', mei role='speaker'. (6) ✅ Room continues after old host leaves: is_live=true, host=diego. (7) ✅ Regression: Host leaving without transfer ends room (404). (8) ✅ Regression: POST /api/rooms/{id}/end works correctly. All authorization checks, role updates, and room state transitions working correctly. No critical issues found. Ready for main agent to summarize and finish."
 
+
+## Test Run — Chat Reactions + Room Share Card + Voice Room Polish (Round 12)
+user_problem_statement: (1) Chat: long-press message shows Instagram/HelloTalk-style reaction popup with 7 quick emojis + expandable full grid + context menu (Reply/Copy/Translate/Correct/Delete). Reactions displayed as badges under bubbles. (2) Voice room: audience switcher (3-dot) panel was too WIDE - now narrower (70%, max 320). (3) Voice room: switcher top icons redesigned (purple Share, transparent Minimize, red Power) - prettier. (4) Voice room: Share option sends room card directly to Chat or Moments. Chat share now sends a RoomMomentCard (host avatar + name + title + language + LIVE badge + Join button) instead of plain text.
+
+backend:
+  - task: "POST /api/chats/{cid}/messages/{mid}/react - toggle emoji reaction"
+    implemented: true
+    working: "NA"
+    file: "backend/routes/chats.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "One reaction per user per message. Same emoji clears, different emoji replaces. Aggregated as [{emoji,count,user_ids}] in message_public. Real-time push over 'message_reaction' socket event. 401 without auth, 404 for unknown message."
+  - task: "POST /api/chats/{cid}/messages accepts room_id (type=room)"
+    implemented: true
+    working: "NA"
+    file: "backend/routes/chats.py, backend/models.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "MessageCreate now text is optional and room_id optional. If room_id present, message stored with type='room', text auto-filled with '🎙️ {title}'. Preview shows in last_message. list_messages / send_message return room card (host + title + is_live + member_count) computed at read-time. 404 for unknown room_id."
+
+frontend:
+  - task: "Chat long-press → Instagram-style reaction popup"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/chat/[id].tsx, frontend/src/components/MessageReactionsPopup.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New MessageReactionsPopup component: Modal with backdrop, 7 quick emojis (❤️😂😮😢🙏👍🔥) + '+' more button expanding to 24-emoji grid, plus context menu (Reply/Copy/Translate/Correct/Delete). Anchored to long-pressed bubble via measureInWindow. Optimistic reactions with rollback. Long press 220ms triggers haptic + popup. testIDs: reaction-{emoji}, reaction-more, reaction-full-{emoji}, msg-menu-*."
+  - task: "Chat: room-share message renders as RoomMomentCard with host image"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/chat/[id].tsx, frontend/src/components/RoomMomentCard.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "RoomMomentCard extended to accept host and compact mode. Shows host avatar (34-38px with country flag) + name + Host role + topic. When chat message has type='room' and room field, renders card inline. testID room-share-{msg_id}. Tapping live room's card navigates to /room/{id}."
+  - task: "Voice room switcher panel narrower + prettier top icons"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/room/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "switcherPanel width reduced from 83%/max420 to 70%/max320. Top icon row redesigned: 3 pill buttons of 42px with distinct colors — purple share (#6D5AE8, share-social icon), transparent Minimize (arrow-collapse icon with 1px border), red Power (#EF4444). Each with subtle shadow."
+  - task: "Voice room Share to Chat → sends room card message"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/room/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "sendRoomToChat now POSTs {room_id: id} instead of plain text. Recipient sees full RoomMomentCard with host image + all room info + Join button. Same card design as in Moments."
+
+agent_communication:
+    - agent: "main"
+      message: "Round 12 changes: (1) BACKEND: New POST /api/chats/{cid}/messages/{mid}/react endpoint (toggle emoji, one per user per message, returns aggregated reactions). Chat send_message now accepts room_id (creates type='room' message with live host card). (2) FRONTEND: New MessageReactionsPopup component - Instagram-style long-press with 7 emojis + expand grid + context menu. Reactions displayed as small badges under bubbles. RoomMomentCard updated to show host avatar + name inline (used in Moments AND chat now). Voice room 3-dot switcher panel narrowed (70%/max 320). Top icons redesigned with distinct colors. Share to Chat now sends room card. Please backend-test first: (A) POST /api/chats/{cid}/messages/{mid}/react - login mei, create chat with diego, send message, mei reacts ❤️ → 200, response.reactions=[{emoji:'❤️',count:1,user_ids:[mei_id]}]. React ❤️ again → cleared. React 😂 → replaces. Diego also reacts ❤️ → count=1. Unauth 401. Unknown message 404. (B) POST /api/chats/{cid}/messages with {room_id} - mei creates room, then POST /chats/{diego_conv}/messages {room_id:room_id} → 200, response.type='room', response.room contains {host:{id,name,avatar_url}, title, is_live:true, member_count, language}. GET messages returns same shape with room field. Unknown room_id → 404. Text-only send still works (backward compat)."
