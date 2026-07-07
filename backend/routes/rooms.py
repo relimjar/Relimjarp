@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from auth_utils import CurrentUser
 from config_utils import get_app_config
@@ -149,11 +151,12 @@ async def list_rooms(current_user: CurrentUser):
     return [room_summary(d, user_map.get(d["host_id"]), user_map) for d in docs]
 
 
-async def _share_room_to_moments(doc: dict, user_id: str) -> None:
+async def _share_room_to_moments(doc: dict, user_id: str, caption: str | None = None) -> None:
+    text = caption or f"🎙️ Live voice room — join and chat: \"{doc['title']}\""
     moment_doc = {
         "_id": str(uuid.uuid4()),
         "user_id": user_id,
-        "text": f"🎙️ Live voice room — join and chat: \"{doc['title']}\"",
+        "text": text,
         "image_id": None,
         "room_id": doc["_id"],
         "likes": [],
@@ -163,16 +166,25 @@ async def _share_room_to_moments(doc: dict, user_id: str) -> None:
     await moments_col.insert_one(moment_doc)
 
 
+class RoomShareToMomentsBody(BaseModel):
+    text: Optional[str] = Field(default=None, max_length=500)
+
+
 @router.post("/{room_id}/share-to-moments", status_code=201)
-async def share_room_to_moments(room_id: str, current_user: CurrentUser):
-    """Host can (re)share the live room to their Moments feed as many times
-    as they like, e.g. to bring in more people after the room quiets down."""
+async def share_room_to_moments(
+    room_id: str,
+    body: RoomShareToMomentsBody | None = None,
+    current_user: CurrentUser = None,
+):
+    """Anyone (host or audience) can share a live room to their own Moments
+    feed with an optional caption. Private rooms are still off-limits."""
     doc = await get_live_room(room_id)
-    if doc["host_id"] != current_user["_id"]:
-        raise HTTPException(status_code=403, detail="Only the host can share this room")
     if doc.get("is_private"):
         raise HTTPException(status_code=400, detail="Private rooms can't be shared")
-    await _share_room_to_moments(doc, current_user["_id"])
+    caption = None
+    if body and body.text:
+        caption = body.text.strip() or None
+    await _share_room_to_moments(doc, current_user["_id"], caption=caption)
     return {"shared": True}
 
 

@@ -1394,3 +1394,88 @@ agent_communication:
 - Root cause: /app/frontend/.env had a stale/incorrect EXPO_PUBLIC_BACKEND_URL (voxdust-vip.preview.emergentagent.com). That domain resolves to emergent.sh marketing site, not this app's ingress → /api/* returned 404.
 - Fix: Set EXPO_PUBLIC_BACKEND_URL / EXPO_PACKAGER_PROXY_URL / EXPO_PACKAGER_HOSTNAME to the actual preview endpoint: 23e89f0c-4dcc-40fe-82d2-2e242a0a0207.preview.emergentagent.com (from env var `preview_endpoint`).
 - Verified: curl to /api/ returns 200 {"message":"LinguaConnect API"}. Guest mode button now logs in and lands at Connect page with streak popup + 515 coins.
+
+## Test Run — Share Flow Redesign + Narrower Switcher Panel (Round 15)
+user_problem_statement: (1) Voice room 3-dot switcher panel still too wide — make narrower and distribute the top icons evenly (space-around) instead of bunched to one side. (2) Both host AND audience can Share to Chat / Share to Moments (audience wasn't allowed before). (3) Share to Moments opens a full-page composer (like a normal moment post) with the room card as attachment + a caption TextInput on top. (4) Share to Chat opens a full NEW page listing all chat contacts, tap a contact to send the card. (5) Room card in chat is the FULL size (same as Moments card), not compact.
+
+backend:
+  - task: "POST /api/rooms/{id}/share-to-moments — audience can share + optional caption"
+    implemented: true
+    working: true
+    file: "backend/routes/rooms.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed host-only restriction — any live-room participant can share. Accepts optional body {text} up to 500 chars used as the moment caption. Private rooms still 400. Non-existent room 404. Anyone (even non-participant) hitting the endpoint should still work (soft-share)."
+        - working: true
+          agent: "testing"
+          comment: "✅ TESTED (6/6 scenarios passed). Scenario 1: Host shares with caption - mei created room, shared with caption 'Come join us! 🎙️', moment found in feed with correct text/room_id/author_id ✅. Scenario 2: Audience shares with caption - diego (non-host) joined room, shared with caption 'This is awesome', returned 201 (NOT 403), moment found in feed ✅. KEY FEATURE VERIFIED: Audience members can now share rooms to moments. Scenario 3: Share without caption - empty body returned 201, moment created with auto-generated text '🎙️ Live voice room — join and chat: \"Round 15 Test\"' ✅. Scenario 4: Private room refuses - private room share returned 400 with detail 'Private rooms can't be shared' ✅. Scenario 5: Unknown room - returned 404 ✅. Scenario 6: Text validation - 600 char text returned 422 with pydantic validation error ✅. Both key changes working: (1) Any authenticated user can share ✅ (2) Optional {text} caption accepted ✅."
+
+frontend:
+  - task: "Voice room switcher panel: narrower + evenly-distributed top icons"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/room/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Panel width now 62% / max 280 (was 70%/320). Icon row justifyContent=space-around instead of flex-end so the 3 icons (Share, Minimize, Power) are evenly distributed across the panel width."
+  - task: "New screen: /share-to-moments (moment composer)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/share-to-moments.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Full page composer opened via router.push. Autofocused TextInput for caption (500 char limit) at top + big RoomMomentCard preview below. Post button top-right triggers POST /rooms/{id}/share-to-moments {text}. testIDs: share-moments-caption-input, share-moments-post-btn, share-moments-room-preview."
+  - task: "New screen: /share-to-chat (contact picker page)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/share-to-chat.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Full page (not modal) listing all conversations with Avatar + name + search bar. Each row has Send button that POST /chats/{cid}/messages {room_id}. On success the button flips to 'Sent' with green bg. testIDs: share-to-chat-send-{cid}, share-chat-search-input."
+  - task: "Chat room card FULL size (removed compact prop)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/chat/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Removed compact prop from RoomMomentCard in chat bubbles. Bubble maxWidth expanded to 88%. Chat card now visually identical to the Moments card."
+
+agent_communication:
+    - agent: "main"
+      message: "Round 15 backend change: POST /api/rooms/{id}/share-to-moments — (1) no more host-only 403; both host + audience can hit it. (2) Accepts optional {text} body up to 500 chars used as moment caption. Please test: (A) Login mei (host), create a live room, POST /rooms/{room_id}/share-to-moments {text:'Come join!'} → 201, then GET /api/moments → find a moment with text='Come join!' and room_id=room_id. (B) Login diego (audience, not the host), POST /rooms/{room_id}/share-to-moments {text:'so cool'} → 201 (was 403 before). Moment appears on diego's feed with room_id. (C) POST without body → 201, moment text auto-generated. (D) POST for a private room → 400. (E) POST for unknown room → 404. Don't test frontend."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.16"
+  test_sequence: 15
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "POST /api/rooms/{id}/share-to-moments — audience can share + optional caption"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+    - agent: "testing"
+      message: "✅ ROUND 15 BACKEND TESTS COMPLETED - ALL TESTS PASSED (6/6 scenarios). Test results: SCENARIO 1 ✅ - Host shares with caption: mei@demo.com created public room 'Round 15 Test', POST /api/rooms/{room_id}/share-to-moments with body {text:'Come join us! 🎙️'} returned 201 with {shared:true}. GET /api/moments confirmed moment exists with text='Come join us! 🎙️', room.id=room_id, author.id=mei_id. SCENARIO 2 ✅ - Audience (non-host) shares with caption: diego@demo.com joined room, POST /api/rooms/{room_id}/share-to-moments with body {text:'This is awesome'} returned 201 (NOT 403 as before). GET /api/moments confirmed moment exists with text='This is awesome', room.id=room_id, author.id=diego_id. This confirms the key feature change - audience members can now share rooms to moments. SCENARIO 3 ✅ - Share without caption: POST /api/rooms/{room_id}/share-to-moments with empty body {} returned 201. GET /api/moments confirmed moment created with auto-generated text '🎙️ Live voice room — join and chat: \"Round 15 Test\"' (starts with 🎙️ and contains room title). SCENARIO 4 ✅ - Private room refuses: Created private room 'Secret', POST /api/rooms/{priv_id}/share-to-moments with body {text:'try'} returned 400 with detail 'Private rooms can't be shared'. SCENARIO 5 ✅ - Unknown room: POST /api/rooms/nonexistent-id-12345/share-to-moments returned 404. SCENARIO 6 ✅ - Text validation: POST /api/rooms/{room_id}/share-to-moments with body {text:'a'*600} (over 500 chars) returned 422 with pydantic validation error 'String should have at most 500 characters'. All HTTP status codes correct, all response fields verified. Both key changes working correctly: (1) Any authenticated user (not just host) can share to moments ✅ (2) Body accepts optional {text} for custom caption ✅. No critical issues found. Backend feature fully functional."

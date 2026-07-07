@@ -368,34 +368,20 @@ export default function RoomScreen() {
     }
   };
 
-  const shareToMoments = async () => {
+  const shareToMoments = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await api.post(`/rooms/${id}/share-to-moments`);
-      setToolsOpen(false);
-      setShareMenuOpen(false);
-      Alert.alert(
-        "Shared to Moments! 🎉",
-        "Your room is now visible in your Moments feed so more people can join.",
-      );
-    } catch (e) {
-      Alert.alert(
-        "Share",
-        e instanceof Error ? e.message : "Could not share this room right now.",
-      );
-    }
+    setToolsOpen(false);
+    setShareMenuOpen(false);
+    setMenuOpen(false);
+    // Full-page composer with caption + card preview, like posting a moment.
+    router.push({ pathname: "/share-to-moments", params: { room_id: String(id) } });
   };
 
-  // Share to Chat: pick one of my conversations and drop a room invite in it.
-  const openShareToChat = async () => {
+  // Share to Chat: open a dedicated page listing chat contacts.
+  const openShareToChat = () => {
     setShareMenuOpen(false);
-    try {
-      const convos = await api.get<Conversation[]>("/chats");
-      setChatList(convos.filter((c) => !!c.partner));
-      setChatPickOpen(true);
-    } catch {
-      Alert.alert("Share to Chat", "Could not load your chats right now.");
-    }
+    setMenuOpen(false);
+    router.push({ pathname: "/share-to-chat", params: { room_id: String(id) } });
   };
 
   const sendRoomToChat = async (conv: Conversation) => {
@@ -2301,16 +2287,16 @@ const makeStyles = () =>
       backgroundColor: "rgba(0,0,0,0.45)",
     },
     switcherPanel: {
-      width: "70%",
-      maxWidth: 320,
+      width: "62%",
+      maxWidth: 280,
       backgroundColor: "#111119",
       paddingHorizontal: spacing.md,
     },
     switcherIconRow: {
       flexDirection: "row",
-      justifyContent: "flex-end",
+      justifyContent: "space-around",
       alignItems: "center",
-      gap: 10,
+      paddingHorizontal: spacing.xs,
       paddingTop: spacing.md,
       paddingBottom: spacing.xl,
     },

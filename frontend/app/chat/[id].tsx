@@ -900,7 +900,6 @@ export default function ChatScreen() {
                       >
                         <RoomMomentCard
                           testID={`room-share-${item.id}`}
-                          compact
                           room={item.room!}
                           onPress={() => {
                             if (item.room?.id && item.room?.is_live) {
