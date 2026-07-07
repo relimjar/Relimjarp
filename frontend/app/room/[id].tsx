@@ -766,7 +766,7 @@ export default function RoomScreen() {
             <Pressable
               testID="room-menu-btn"
               style={styles.menuBtn}
-              onPress={() => setMenuOpen(true)}
+              onPress={() => (isHost ? setExitSheetOpen(true) : setMenuOpen(true))}
             >
               <Ionicons name="ellipsis-horizontal" size={20} color="#FFFFFF" />
             </Pressable>
@@ -1141,7 +1141,10 @@ export default function RoomScreen() {
                   <Pressable
                     testID="room-power-btn"
                     style={styles.switcherIconBtn}
-                    onPress={() => setExitSheetOpen(true)}
+                    onPress={() => {
+                      setMenuOpen(false);
+                      leave();
+                    }}
                   >
                     <Ionicons name="power" size={21} color="#FFFFFF" />
                   </Pressable>
