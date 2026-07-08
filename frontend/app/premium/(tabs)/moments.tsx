@@ -70,7 +70,7 @@ export default function PremiumMoments() {
           <Text style={styles.title}>Moments</Text>
         </View>
         <Pressable
-          onPress={() => router.push("/moment-compose")}
+          onPress={() => router.push("/premium/moment-compose")}
           style={styles.composeBtn}
           testID="premium-moments-compose"
         >
@@ -104,7 +104,7 @@ export default function PremiumMoments() {
               </Text>
               <Pressable
                 testID="premium-moments-empty-compose"
-                onPress={() => router.push("/moment-compose")}
+                onPress={() => router.push("/premium/moment-compose")}
                 style={styles.emptyBtn}
               >
                 <Text style={styles.emptyBtnText}>Compose a moment</Text>
@@ -114,7 +114,7 @@ export default function PremiumMoments() {
           renderItem={({ item }) => (
             <Pressable
               testID={`premium-moment-${item.id}`}
-              onPress={() => router.push(`/moment/${item.id}`)}
+              onPress={() => router.push(`/premium/moment/${item.id}`)}
               style={styles.card}
             >
               <View style={styles.cardTop}>

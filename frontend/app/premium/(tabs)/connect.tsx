@@ -1,10 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import dayjs from "dayjs";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,46 +17,217 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
 import { countryToCode } from "@/src/constants/countries";
+import { langName, PROFICIENCY_LEVELS } from "@/src/constants/languages";
+import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
-import { api } from "@/src/utils/api";
+import { api, User } from "@/src/utils/api";
 import { premiumColors, premiumRadius } from "@/src/premium/theme";
 
-interface PremiumMember {
-  id: string;
-  name: string;
-  avatar_url?: string;
-  country?: string;
-  learning_language?: string;
-  native_language?: string;
-  is_online?: boolean;
-  is_vip?: boolean;
-  vip_tier?: string;
-  bio?: string;
-  active_frame?: string;
-}
+// Fixed popular languages shown as tabs. The 6 languages most Premium
+// members will look for teachers in. Order matters — most-searched first.
+const POPULAR_LANGS: { code: string; label: string; flag: string }[] = [
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "es", label: "Spanish", flag: "🇪🇸" },
+  { code: "zh", label: "Chinese", flag: "🇨🇳" },
+  { code: "ko", label: "Korean", flag: "🇰🇷" },
+  { code: "ja", label: "Japanese", flag: "🇯🇵" },
+  { code: "fr", label: "French", flag: "🇫🇷" },
+];
 
 export default function PremiumConnect() {
   const router = useRouter();
-  const [members, setMembers] = useState<PremiumMember[]>([]);
+  const { user, setUser } = useAuth();
+  const [members, setMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lang, setLang] = useState<string>(POPULAR_LANGS[0].code);
+  const [applyOpen, setApplyOpen] = useState(false);
+  const [applyBusy, setApplyBusy] = useState(false);
 
   const load = useCallback(async () => {
+    if (!user) return;
     try {
-      const data = await api.get<PremiumMember[]>("/users");
-      // Only show VIPs — the premium club is members-only.
-      setMembers(data.filter((u) => u.is_vip));
+      setLoading(true);
+      // Backend already filters by native_language OR teach_languages.
+      const data = await api.get<User[]>(
+        `/users/partners?language=${lang}`,
+      );
+      // Show every teacher of this language, VIP or not — any main-app user
+      // can showcase themselves here by setting teach_languages.
+      setMembers(data);
     } catch {
-      // keep list
+      // silent
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [lang, user]);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
+
+  const iTeach = useMemo(() => new Set(user?.teach_languages || []), [user]);
+
+  const toggleTeach = async (code: string) => {
+    if (!user || applyBusy) return;
+    const next = new Set(iTeach);
+    if (next.has(code)) next.delete(code);
+    else next.add(code);
+    setApplyBusy(true);
+    try {
+      const updated = await api.put<User>("/users/me", {
+        teach_languages: Array.from(next),
+      });
+      setUser(updated);
+    } catch {
+      Alert.alert("Save failed", "Please try again.");
+    } finally {
+      setApplyBusy(false);
+    }
+  };
+
+  const ProfDots = ({ level }: { level?: string | null }) => {
+    const idx = level ? PROFICIENCY_LEVELS.indexOf(level) : -1;
+    const filled = idx >= 0 ? idx + 1 : 1;
+    return (
+      <View style={styles.dotsRow}>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <View
+            key={i}
+            style={[styles.dot, i < filled && styles.dotFilled]}
+          />
+        ))}
+      </View>
+    );
+  };
+
+  const renderCard = ({ item }: { item: User }) => {
+    const learning = (
+      item.learning_languages?.length
+        ? item.learning_languages
+        : item.learning_language
+          ? [item.learning_language]
+          : []
+    ).slice(0, 3);
+
+    const isNew =
+      item.created_at &&
+      dayjs().diff(dayjs(item.created_at), "day") < 7;
+    const isNative = item.native_language === lang;
+
+    return (
+      <Pressable
+        testID={`premium-partner-${item.id}`}
+        style={styles.card}
+        onPress={() => router.push(`/user/${item.id}`)}
+      >
+        <View style={styles.avatarCol}>
+          <Avatar
+            name={item.name}
+            url={item.avatar_url}
+            size={54}
+            flagCode={countryToCode(item.country)}
+            online={item.is_online}
+            frame={item.active_frame}
+          />
+          <View style={styles.activeRow}>
+            <View
+              style={[
+                styles.activeDot,
+                {
+                  backgroundColor: item.is_online
+                    ? premiumColors.success
+                    : premiumColors.onSurfaceTertiary,
+                },
+              ]}
+            />
+            <Text style={styles.activeText} numberOfLines={1}>
+              {item.is_online ? "Active" : "Recently"}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.cardTop}>
+            <Text style={styles.cardName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            {item.is_vip && (
+              <View style={styles.vipBadge}>
+                <Ionicons
+                  name="diamond"
+                  size={9}
+                  color={premiumColors.onGold}
+                />
+                <Text style={styles.vipText}>VIP</Text>
+              </View>
+            )}
+            {isNative && (
+              <View style={styles.nativeBadge}>
+                <Text style={styles.nativeText}>NATIVE</Text>
+              </View>
+            )}
+            {isNew && !isNative && (
+              <View style={styles.newBadge}>
+                <Text style={styles.newText}>NEW</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.langRow}>
+            <View style={styles.langItem}>
+              <Text style={styles.langCode}>
+                {(item.native_language || "").toUpperCase()}
+              </Text>
+              <View style={styles.langBar} />
+            </View>
+            <Ionicons
+              name="swap-horizontal"
+              size={13}
+              color={premiumColors.onSurfaceSecondary}
+              style={{ marginHorizontal: 5 }}
+            />
+            {learning.map((c, i) => (
+              <View key={c} style={[styles.langItem, { marginRight: 6 }]}>
+                <Text style={styles.langCode}>{c.toUpperCase()}</Text>
+                <ProfDots
+                  level={
+                    item.proficiencies?.[c] ||
+                    (i === 0 ? item.proficiency : null)
+                  }
+                />
+              </View>
+            ))}
+          </View>
+
+          <Text style={styles.cardSub} numberOfLines={2}>
+            {item.bio?.trim() ||
+              `Teaches ${langName(lang)} — send a message to say hi.`}
+          </Text>
+        </View>
+
+        <Pressable
+          testID={`premium-partner-chat-${item.id}`}
+          hitSlop={8}
+          onPress={(e) => {
+            e.stopPropagation();
+            router.push(`/chat/new?userId=${item.id}`);
+          }}
+          style={styles.chatBtn}
+        >
+          <Ionicons
+            name="chatbubble-ellipses"
+            size={16}
+            color={premiumColors.onGold}
+          />
+        </Pressable>
+      </Pressable>
+    );
+  };
+
+  const currentLangLabel =
+    POPULAR_LANGS.find((l) => l.code === lang)?.label || langName(lang);
 
   return (
     <SafeAreaView
@@ -63,12 +238,55 @@ export default function PremiumConnect() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.brand}>PREMIUM CLUB</Text>
-          <Text style={styles.title}>Members</Text>
+          <Text style={styles.title}>Language Teachers</Text>
         </View>
-        <View style={styles.countPill}>
-          <Ionicons name="diamond" size={11} color={premiumColors.gold} />
-          <Text style={styles.countText}>{members.length} online</Text>
-        </View>
+        <Pressable
+          testID="premium-connect-apply"
+          onPress={() => setApplyOpen(true)}
+          style={styles.applyBtn}
+          hitSlop={6}
+        >
+          <Ionicons name="school" size={14} color={premiumColors.onGold} />
+          <Text style={styles.applyText}>Teach here</Text>
+        </Pressable>
+      </View>
+
+      {/* Language tabs — the ONLY filter on this page */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.langTabScroll}
+        contentContainerStyle={styles.langTabRow}
+      >
+        {POPULAR_LANGS.map((t) => {
+          const active = lang === t.code;
+          return (
+            <Pressable
+              key={t.code}
+              testID={`premium-lang-tab-${t.code}`}
+              onPress={() => setLang(t.code)}
+              style={[styles.langTab, active && styles.langTabActive]}
+            >
+              <Text style={styles.flag}>{t.flag}</Text>
+              <Text
+                style={[
+                  styles.langTabText,
+                  active && styles.langTabTextActive,
+                ]}
+              >
+                {t.label}
+              </Text>
+              {active && <View style={styles.langTabUnderline} />}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.countStrip}>
+        <Ionicons name="diamond" size={11} color={premiumColors.gold} />
+        <Text style={styles.countStripText}>
+          {loading ? "Loading…" : `${members.length} ${currentLangLabel} teachers`}
+        </Text>
       </View>
 
       {loading ? (
@@ -79,73 +297,88 @@ export default function PremiumConnect() {
         <FlatList
           data={members}
           keyExtractor={(m) => m.id}
-          numColumns={2}
-          columnWrapperStyle={{ gap: 12 }}
+          renderItem={renderCard}
           contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ItemSeparatorComponent={() => <View style={styles.sep} />}
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <View style={styles.emptyBadge}>
-                <Ionicons name="diamond" size={28} color={premiumColors.gold} />
+                <Text style={{ fontSize: 32 }}>
+                  {POPULAR_LANGS.find((l) => l.code === lang)?.flag}
+                </Text>
               </View>
-              <Text style={styles.emptyTitle}>No members yet</Text>
+              <Text style={styles.emptyTitle}>No {currentLangLabel} teachers yet</Text>
               <Text style={styles.emptyBody}>
-                Be the first premium member — upgrade your account.
+                Be the first to teach {currentLangLabel} in the Premium Club.
               </Text>
+              <Pressable
+                testID="premium-empty-apply"
+                onPress={() => setApplyOpen(true)}
+                style={styles.emptyBtn}
+              >
+                <Text style={styles.emptyBtnText}>Apply as teacher</Text>
+              </Pressable>
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              testID={`premium-member-${item.id}`}
-              onPress={() => router.push(`/user/${item.id}`)}
-              style={styles.card}
-            >
-              <View style={styles.avatarRow}>
-                <Avatar
-                  name={item.name}
-                  url={item.avatar_url}
-                  size={62}
-                  flagCode={countryToCode(item.country)}
-                  online={item.is_online}
-                  frame={item.active_frame}
-                />
-                <View style={styles.vipRibbon}>
-                  <Ionicons name="diamond" size={9} color={premiumColors.onGold} />
-                  <Text style={styles.vipRibbonText}>VIP</Text>
-                </View>
-              </View>
-              <Text style={styles.name} numberOfLines={1}>
-                {item.name}
-              </Text>
-              {item.bio ? (
-                <Text style={styles.bio} numberOfLines={2}>
-                  “{item.bio}”
-                </Text>
-              ) : (
-                <Text style={styles.bioMuted}>Verified member</Text>
-              )}
-              <View style={styles.footerRow}>
-                <View style={styles.langPill}>
-                  <Text style={styles.langText} numberOfLines={1}>
-                    {(item.learning_language || "lang").toUpperCase()}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => router.push(`/chat/new?userId=${item.id}`)}
-                  style={styles.chatBtn}
-                  testID={`premium-connect-chat-${item.id}`}
-                >
-                  <Ionicons
-                    name="chatbubble-ellipses"
-                    size={14}
-                    color={premiumColors.onGold}
-                  />
-                </Pressable>
-              </View>
-            </Pressable>
-          )}
         />
       )}
+
+      {/* Apply as Teacher modal */}
+      <Modal
+        visible={applyOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setApplyOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setApplyOpen(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Teach on Premium</Text>
+            <Text style={styles.modalBody}>
+              Pick the languages you can teach. Your profile will appear under
+              each language tab so learners can find and chat with you.
+            </Text>
+            <View style={styles.chipGrid}>
+              {POPULAR_LANGS.map((l) => {
+                const on = iTeach.has(l.code);
+                return (
+                  <Pressable
+                    key={l.code}
+                    testID={`premium-apply-lang-${l.code}`}
+                    disabled={applyBusy}
+                    onPress={() => toggleTeach(l.code)}
+                    style={[styles.langChip, on && styles.langChipOn]}
+                  >
+                    <Text style={styles.langChipFlag}>{l.flag}</Text>
+                    <Text
+                      style={[
+                        styles.langChipText,
+                        on && { color: premiumColors.onGold },
+                      ]}
+                    >
+                      {l.label}
+                    </Text>
+                    {on && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={14}
+                        color={premiumColors.onGold}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              testID="premium-apply-done"
+              onPress={() => setApplyOpen(false)}
+              style={styles.modalDone}
+            >
+              <Text style={styles.modalDoneText}>Done</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -158,7 +391,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 20,
     paddingTop: 6,
-    paddingBottom: 12,
+    paddingBottom: 10,
   },
   brand: {
     fontFamily: fonts.textBold,
@@ -172,99 +405,172 @@ const styles = StyleSheet.create({
     color: premiumColors.onSurface,
     marginTop: 2,
   },
-  countPill: {
+  applyBtn: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: premiumColors.surfaceRaised,
+    gap: 5,
+    backgroundColor: premiumColors.gold,
     borderRadius: premiumRadius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: premiumColors.gold,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  countText: {
+  applyText: {
+    fontFamily: fonts.textBold,
+    fontSize: 12,
+    color: premiumColors.onGold,
+  },
+  langTabScroll: { flexGrow: 0, maxHeight: 56 },
+  langTabRow: {
+    paddingHorizontal: 20,
+    gap: 18,
+    alignItems: "flex-start",
+  },
+  langTab: {
+    alignItems: "center",
+    paddingBottom: 8,
+    flexDirection: "row",
+    gap: 6,
+  },
+  langTabActive: {},
+  flag: { fontSize: 16 },
+  langTabText: {
+    fontFamily: fonts.textBold,
+    fontSize: 13,
+    color: premiumColors.onSurfaceSecondary,
+  },
+  langTabTextActive: {
+    color: premiumColors.gold,
+    fontFamily: fonts.displayBold,
+  },
+  langTabUnderline: {
+    position: "absolute",
+    bottom: 0,
+    left: "50%",
+    marginLeft: -13,
+    width: 26,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: premiumColors.gold,
+  },
+  countStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    paddingTop: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: premiumColors.divider,
+  },
+  countStripText: {
     fontFamily: fonts.textBold,
     fontSize: 11,
-    color: premiumColors.gold,
+    color: premiumColors.onSurfaceSecondary,
+    letterSpacing: 0.5,
   },
-  list: { paddingHorizontal: 20, paddingBottom: 40 },
+  list: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 40 },
+  sep: { height: 12 },
   card: {
-    flex: 1,
-    backgroundColor: premiumColors.surfaceRaised,
-    borderRadius: premiumRadius.xl,
+    flexDirection: "row",
+    gap: 12,
     padding: 14,
+    borderRadius: premiumRadius.xl,
+    backgroundColor: premiumColors.surfaceRaised,
     borderWidth: 1,
     borderColor: premiumColors.border,
-    gap: 6,
-    minHeight: 190,
-  },
-  avatarRow: {
-    alignItems: "center",
-    justifyContent: "center",
     position: "relative",
   },
-  vipRibbon: {
-    position: "absolute",
-    bottom: -4,
+  avatarCol: { alignItems: "center", width: 62, gap: 6 },
+  activeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  activeDot: { width: 6, height: 6, borderRadius: 3 },
+  activeText: {
+    fontFamily: fonts.textSemi,
+    fontSize: 10,
+    color: premiumColors.onSurfaceSecondary,
+  },
+  cardBody: { flex: 1, gap: 5 },
+  cardTop: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  cardName: {
+    fontFamily: fonts.displayBold,
+    fontSize: 15,
+    color: premiumColors.onSurface,
+    flexShrink: 1,
+  },
+  vipBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
     backgroundColor: premiumColors.gold,
     borderRadius: premiumRadius.pill,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  vipRibbonText: {
+  vipText: {
     fontFamily: fonts.textBold,
-    fontSize: 9,
+    fontSize: 8,
     color: premiumColors.onGold,
     letterSpacing: 0.5,
   },
-  name: {
-    fontFamily: fonts.displayBold,
-    fontSize: 14,
-    color: premiumColors.onSurface,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  bio: {
-    fontFamily: fonts.text,
-    fontSize: 11,
-    color: premiumColors.onSurfaceSecondary,
-    textAlign: "center",
-    fontStyle: "italic",
-    minHeight: 30,
-  },
-  bioMuted: {
-    fontFamily: fonts.textSemi,
-    fontSize: 11,
-    color: premiumColors.onSurfaceTertiary,
-    textAlign: "center",
-    minHeight: 30,
-  },
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  langPill: {
-    backgroundColor: premiumColors.surfaceHigh,
+  nativeBadge: {
+    backgroundColor: premiumColors.success + "33",
     borderRadius: premiumRadius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
-  langText: {
+  nativeText: {
     fontFamily: fonts.textBold,
-    fontSize: 10,
+    fontSize: 8,
+    color: premiumColors.success,
+    letterSpacing: 0.5,
+  },
+  newBadge: {
+    backgroundColor: premiumColors.info + "33",
+    borderRadius: premiumRadius.pill,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  newText: {
+    fontFamily: fonts.textBold,
+    fontSize: 8,
+    color: premiumColors.info,
+    letterSpacing: 0.5,
+  },
+  langRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
+  langItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  langCode: {
+    fontFamily: fonts.textBold,
+    fontSize: 11,
     color: premiumColors.gold,
     letterSpacing: 0.8,
   },
+  langBar: {
+    width: 14,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: premiumColors.gold,
+  },
+  dotsRow: { flexDirection: "row", gap: 2 },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: premiumColors.border,
+  },
+  dotFilled: { backgroundColor: premiumColors.gold },
+  cardSub: {
+    fontFamily: fonts.text,
+    fontSize: 12,
+    color: premiumColors.onSurfaceSecondary,
+    lineHeight: 17,
+    paddingRight: 44,
+  },
   chatBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    position: "absolute",
+    right: 12,
+    bottom: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: premiumColors.gold,
     alignItems: "center",
     justifyContent: "center",
@@ -273,7 +579,7 @@ const styles = StyleSheet.create({
   emptyBox: {
     alignItems: "center",
     paddingHorizontal: 32,
-    paddingTop: 60,
+    paddingTop: 40,
     gap: 8,
   },
   emptyBadge: {
@@ -288,7 +594,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontFamily: fonts.displayBold,
-    fontSize: 18,
+    fontSize: 17,
     color: premiumColors.onSurface,
     marginTop: 10,
   },
@@ -298,5 +604,92 @@ const styles = StyleSheet.create({
     color: premiumColors.onSurfaceSecondary,
     textAlign: "center",
     lineHeight: 19,
+  },
+  emptyBtn: {
+    marginTop: 14,
+    backgroundColor: premiumColors.gold,
+    borderRadius: premiumRadius.pill,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+  },
+  emptyBtnText: {
+    fontFamily: fonts.textBold,
+    fontSize: 14,
+    color: premiumColors.onGold,
+  },
+  // Apply modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: premiumColors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    paddingBottom: 30,
+    borderWidth: 1,
+    borderColor: premiumColors.gold + "44",
+    borderBottomWidth: 0,
+  },
+  modalHandle: {
+    alignSelf: "center",
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: premiumColors.border,
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontFamily: fonts.displayBold,
+    fontSize: 20,
+    color: premiumColors.onSurface,
+    marginBottom: 6,
+  },
+  modalBody: {
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    color: premiumColors.onSurfaceSecondary,
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  chipGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  langChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: premiumColors.surfaceRaised,
+    borderRadius: premiumRadius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderWidth: 1.5,
+    borderColor: premiumColors.border,
+  },
+  langChipOn: {
+    backgroundColor: premiumColors.gold,
+    borderColor: premiumColors.gold,
+  },
+  langChipFlag: { fontSize: 16 },
+  langChipText: {
+    fontFamily: fonts.textBold,
+    fontSize: 13,
+    color: premiumColors.onSurface,
+  },
+  modalDone: {
+    marginTop: 20,
+    backgroundColor: premiumColors.gold,
+    borderRadius: premiumRadius.pill,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  modalDoneText: {
+    fontFamily: fonts.textBold,
+    fontSize: 15,
+    color: premiumColors.onGold,
   },
 });
