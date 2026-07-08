@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
 import { api } from "@/src/utils/api";
 import { premiumColors, premiumRadius } from "@/src/premium/theme";
@@ -29,8 +30,10 @@ interface VoiceRoom {
 
 export default function PremiumVoice() {
   const router = useRouter();
+  const { user } = useAuth();
   const [rooms, setRooms] = useState<VoiceRoom[]>([]);
   const [loading, setLoading] = useState(true);
+  const isVip = !!user?.is_vip;
 
   const load = useCallback(async () => {
     try {
@@ -62,17 +65,29 @@ export default function PremiumVoice() {
           <Text style={styles.title}>Voice Rooms</Text>
         </View>
         <Pressable
-          onPress={() => router.push("/voice-room-create")}
-          style={styles.newBtn}
+          onPress={() =>
+            isVip
+              ? router.push("/voice-room-create")
+              : router.push("/learn/subscription")
+          }
+          style={[styles.newBtn, !isVip && styles.newBtnLocked]}
           testID="premium-voice-new"
         >
-          <Ionicons name="add" size={20} color={premiumColors.onGold} />
+          <Ionicons
+            name={isVip ? "add" : "lock-closed"}
+            size={isVip ? 20 : 16}
+            color={premiumColors.onGold}
+          />
         </Pressable>
       </View>
 
       <View style={styles.hint}>
         <Ionicons name="diamond" size={12} color={premiumColors.gold} />
-        <Text style={styles.hintText}>Exclusive members-only rooms</Text>
+        <Text style={styles.hintText}>
+          {isVip
+            ? "Exclusive members-only rooms"
+            : "Only Premium members can start a room."}
+        </Text>
       </View>
 
       {loading ? (
@@ -96,10 +111,16 @@ export default function PremiumVoice() {
               </Text>
               <Pressable
                 testID="premium-voice-empty-new"
-                onPress={() => router.push("/voice-room-create")}
+                onPress={() =>
+                  isVip
+                    ? router.push("/voice-room-create")
+                    : router.push("/learn/subscription")
+                }
                 style={styles.emptyBtn}
               >
-                <Text style={styles.emptyBtnText}>Start a room</Text>
+                <Text style={styles.emptyBtnText}>
+                  {isVip ? "Start a room" : "Become Premium"}
+                </Text>
               </Pressable>
             </View>
           }
@@ -182,6 +203,11 @@ const styles = StyleSheet.create({
     backgroundColor: premiumColors.gold,
     alignItems: "center",
     justifyContent: "center",
+  },
+  newBtnLocked: {
+    backgroundColor: premiumColors.surfaceHigh,
+    borderWidth: 1,
+    borderColor: premiumColors.gold,
   },
   hint: {
     flexDirection: "row",

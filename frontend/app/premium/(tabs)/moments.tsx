@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
 import { api } from "@/src/utils/api";
 import { timeAgo } from "@/src/utils/time";
@@ -37,8 +38,10 @@ interface Moment {
 
 export default function PremiumMoments() {
   const router = useRouter();
+  const { user } = useAuth();
   const [posts, setPosts] = useState<Moment[]>([]);
   const [loading, setLoading] = useState(true);
+  const isVip = !!user?.is_vip;
 
   const load = useCallback(async () => {
     try {
@@ -71,16 +74,24 @@ export default function PremiumMoments() {
         </View>
         <Pressable
           onPress={() => router.push("/premium/moment-compose")}
-          style={styles.composeBtn}
+          style={[styles.composeBtn, !isVip && styles.composeBtnLocked]}
           testID="premium-moments-compose"
         >
-          <Ionicons name="add" size={20} color={premiumColors.onGold} />
+          <Ionicons
+            name={isVip ? "add" : "lock-closed"}
+            size={isVip ? 20 : 16}
+            color={premiumColors.onGold}
+          />
         </Pressable>
       </View>
 
       <View style={styles.hint}>
         <Ionicons name="diamond" size={12} color={premiumColors.gold} />
-        <Text style={styles.hintText}>Only members can post here</Text>
+        <Text style={styles.hintText}>
+          {isVip
+            ? "Only members can post here"
+            : "Only Premium members can post. Upgrade to join."}
+        </Text>
       </View>
 
       {loading ? (
@@ -104,10 +115,16 @@ export default function PremiumMoments() {
               </Text>
               <Pressable
                 testID="premium-moments-empty-compose"
-                onPress={() => router.push("/premium/moment-compose")}
+                onPress={() =>
+                  isVip
+                    ? router.push("/premium/moment-compose")
+                    : router.push("/learn/subscription")
+                }
                 style={styles.emptyBtn}
               >
-                <Text style={styles.emptyBtnText}>Compose a moment</Text>
+                <Text style={styles.emptyBtnText}>
+                  {isVip ? "Compose a moment" : "Become Premium"}
+                </Text>
               </Pressable>
             </View>
           }
@@ -203,6 +220,11 @@ const styles = StyleSheet.create({
     backgroundColor: premiumColors.gold,
     alignItems: "center",
     justifyContent: "center",
+  },
+  composeBtnLocked: {
+    backgroundColor: premiumColors.surfaceHigh,
+    borderWidth: 1,
+    borderColor: premiumColors.gold,
   },
   hint: {
     flexDirection: "row",

@@ -214,11 +214,11 @@ export default function PremiumConnect() {
             e.stopPropagation();
             router.push(`/chat/new?userId=${item.id}`);
           }}
-          style={styles.chatBtn}
+          style={styles.waveBtn}
         >
           <Ionicons
-            name="chatbubble-ellipses"
-            size={16}
+            name="chatbubble"
+            size={20}
             color={premiumColors.onGold}
           />
         </Pressable>
@@ -251,7 +251,7 @@ export default function PremiumConnect() {
         </Pressable>
       </View>
 
-      {/* Language tabs — the ONLY filter on this page */}
+      {/* Language tabs — pill-chip style matching the main app Connect */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -265,18 +265,17 @@ export default function PremiumConnect() {
               key={t.code}
               testID={`premium-lang-tab-${t.code}`}
               onPress={() => setLang(t.code)}
-              style={[styles.langTab, active && styles.langTabActive]}
+              style={[styles.langChipTab, active && styles.langChipTabActive]}
             >
               <Text style={styles.flag}>{t.flag}</Text>
               <Text
                 style={[
-                  styles.langTabText,
-                  active && styles.langTabTextActive,
+                  styles.langChipTabText,
+                  active && styles.langChipTabTextActive,
                 ]}
               >
                 {t.label}
               </Text>
-              {active && <View style={styles.langTabUnderline} />}
             </Pressable>
           );
         })}
@@ -419,38 +418,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: premiumColors.onGold,
   },
-  langTabScroll: { flexGrow: 0, maxHeight: 56 },
+  langTabScroll: { flexGrow: 0, maxHeight: 52 },
   langTabRow: {
     paddingHorizontal: 20,
-    gap: 18,
-    alignItems: "flex-start",
-  },
-  langTab: {
+    gap: 8,
     alignItems: "center",
-    paddingBottom: 8,
-    flexDirection: "row",
-    gap: 6,
+    paddingBottom: 4,
   },
-  langTabActive: {},
-  flag: { fontSize: 16 },
-  langTabText: {
+  langChipTab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: premiumRadius.pill,
+    backgroundColor: premiumColors.surface,
+    borderWidth: 1,
+    borderColor: premiumColors.border,
+  },
+  langChipTabActive: {
+    backgroundColor: premiumColors.gold + "1F",
+    borderColor: premiumColors.gold,
+  },
+  flag: { fontSize: 15 },
+  langChipTabText: {
     fontFamily: fonts.textBold,
     fontSize: 13,
     color: premiumColors.onSurfaceSecondary,
   },
-  langTabTextActive: {
+  langChipTabTextActive: {
     color: premiumColors.gold,
     fontFamily: fonts.displayBold,
-  },
-  langTabUnderline: {
-    position: "absolute",
-    bottom: 0,
-    left: "50%",
-    marginLeft: -13,
-    width: 26,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: premiumColors.gold,
   },
   countStrip: {
     flexDirection: "row",
@@ -562,18 +560,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: premiumColors.onSurfaceSecondary,
     lineHeight: 17,
-    paddingRight: 44,
   },
-  chatBtn: {
-    position: "absolute",
-    right: 12,
-    bottom: 12,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+  waveBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: premiumColors.gold,
     alignItems: "center",
     justifyContent: "center",
+    alignSelf: "center",
   },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyBox: {

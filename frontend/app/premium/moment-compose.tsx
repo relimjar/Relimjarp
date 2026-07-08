@@ -17,12 +17,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
 import { api } from "@/src/utils/api";
 import { premiumColors, premiumRadius } from "@/src/premium/theme";
 
 export default function PremiumMomentCompose() {
   const router = useRouter();
+  const { user } = useAuth();
   const [text, setText] = useState("");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
@@ -32,6 +34,56 @@ export default function PremiumMomentCompose() {
   const [showPoll, setShowPoll] = useState(false);
   const [pollQ, setPollQ] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+
+  // ---- VIP gate ---------------------------------------------------------
+  // Only Premium (VIP) members may compose here. Free users see an upgrade
+  // wall instead of the compose form.
+  if (user && !user.is_vip) {
+    return (
+      <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+        <View style={styles.topBar}>
+          <Pressable
+            testID="premium-compose-back"
+            onPress={() => router.back()}
+            style={styles.iconChip}
+            hitSlop={8}
+          >
+            <Ionicons name="close" size={20} color={premiumColors.gold} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.brand}>PREMIUM CLUB</Text>
+            <Text style={styles.title}>New Moment</Text>
+          </View>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={styles.gate}>
+          <View style={styles.gateIconWrap}>
+            <Ionicons name="lock-closed" size={38} color={premiumColors.gold} />
+          </View>
+          <Text style={styles.gateTitle}>Premium members only</Text>
+          <Text style={styles.gateBody}>
+            Only verified Premium members can post in the Club Moments feed.
+            Upgrade your account to share moments with the community.
+          </Text>
+          <Pressable
+            testID="premium-compose-upgrade"
+            onPress={() => router.push("/learn/subscription")}
+            style={styles.gateBtn}
+          >
+            <Ionicons name="diamond" size={14} color={premiumColors.onGold} />
+            <Text style={styles.gateBtnText}>Become Premium</Text>
+          </Pressable>
+          <Pressable
+            testID="premium-compose-back-btn"
+            onPress={() => router.back()}
+            hitSlop={8}
+          >
+            <Text style={styles.gateSecondary}>Not now</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -451,5 +503,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: premiumColors.onSurface,
     padding: 0,
+  },
+  // Gate (non-VIP)
+  gate: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 30,
+    gap: 12,
+  },
+  gateIconWrap: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: premiumColors.surfaceRaised,
+    borderWidth: 2,
+    borderColor: premiumColors.gold,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  gateTitle: {
+    fontFamily: fonts.displayBold,
+    fontSize: 22,
+    color: premiumColors.onSurface,
+  },
+  gateBody: {
+    fontFamily: fonts.textSemi,
+    fontSize: 13,
+    color: premiumColors.onSurfaceSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    maxWidth: 300,
+  },
+  gateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: premiumColors.gold,
+    borderRadius: premiumRadius.pill,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    marginTop: 14,
+  },
+  gateBtnText: {
+    fontFamily: fonts.textBold,
+    fontSize: 15,
+    color: premiumColors.onGold,
+  },
+  gateSecondary: {
+    fontFamily: fonts.textBold,
+    fontSize: 13,
+    color: premiumColors.onSurfaceTertiary,
+    marginTop: 6,
   },
 });
