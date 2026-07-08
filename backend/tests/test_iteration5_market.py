@@ -124,7 +124,6 @@ class TestMarketBuy:
 
 class TestUserCardShowsVipAndCosmetics:
     def test_users_list_carries_vip_and_cosmetics(self, user_ctx):
-        s = user_ctx["session"]
         # /api/users returns partners; ensure our purchased flags are visible on our own /auth/me
         # (user_card is used when listing partners; we check the shape via /users/{id})
         me_id = user_ctx["id"]

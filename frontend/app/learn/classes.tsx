@@ -1,11 +1,12 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { fonts } from "@/src/theme";
-import { learnColors, learnRadius } from "@/src/learn/theme";
-import { LearnDock } from "./explore";
+import { LearnDock, useLearnDockPadding } from "@/src/learn/LearnDock";
+import { learnColors } from "@/src/learn/theme";
 
 /**
  * Live Classes hub. Two tab modes:
@@ -63,11 +64,13 @@ const TEACHERS = [
 ];
 
 export default function LearnClasses() {
+  const router = useRouter();
   const [mode, setMode] = useState<"list" | "start">("start");
   const [filter, setFilter] = useState<"solo" | "group">("group");
+  const dockPad = useLearnDockPadding();
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.topBar}>
         <Text style={styles.h1}>Live classes</Text>
         <Pressable
@@ -124,7 +127,7 @@ export default function LearnClasses() {
           </View>
 
           <ScrollView
-            contentContainerStyle={styles.body}
+            contentContainerStyle={[styles.body, { paddingBottom: dockPad }]}
             showsVerticalScrollIndicator={false}
           >
             {CLASSES.map((c) => (
@@ -220,7 +223,7 @@ export default function LearnClasses() {
         </>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, { paddingBottom: dockPad }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Level finder card */}
@@ -240,6 +243,7 @@ export default function LearnClasses() {
             <Text style={styles.startAttr}>Siam Joy</Text>
             <Pressable
               testID="learn-classes-find-level"
+              onPress={() => router.push("/learn/assessment")}
               style={styles.findLevelBtn}
             >
               <Text style={styles.findLevelText}>Find level</Text>
@@ -332,7 +336,6 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingHorizontal: 20,
-    paddingBottom: 130,
     gap: 16,
   },
   classCard: {

@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { langName } from "@/src/constants/languages";
 import { fonts } from "@/src/theme";
 import { api } from "@/src/utils/api";
+import { LearnDock, useLearnDockPadding } from "@/src/learn/LearnDock";
 import { learnColors, learnRadius } from "@/src/learn/theme";
 
 interface LearnStatus {
@@ -39,6 +40,7 @@ export default function LearnDashboard() {
   const router = useRouter();
   const [status, setStatus] = useState<LearnStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const dockPad = useLearnDockPadding();
   const styles = useMemo(() => makeStyles(), []);
 
   const load = useCallback(async () => {
@@ -59,7 +61,7 @@ export default function LearnDashboard() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
       {/* Top nav */}
       <View style={styles.topBar}>
         <Pressable
@@ -77,7 +79,7 @@ export default function LearnDashboard() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: dockPad }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Daily Vocab Workout — big yellow card */}
@@ -176,89 +178,10 @@ export default function LearnDashboard() {
       </ScrollView>
 
       {/* Bottom nav dock */}
-      <View style={styles.dock}>
-        <DockBtn
-          testID="learn-dock-home"
-          icon="home"
-          onPress={() => router.replace("/learn/dashboard")}
-          active
-        />
-        <DockBtn
-          testID="learn-dock-plan"
-          icon="checkmark-circle"
-          onPress={() => router.replace("/learn/plan")}
-        />
-        <DockBtn
-          testID="learn-dock-classes"
-          icon="people"
-          orange
-          onPress={() => router.replace("/learn/classes")}
-        />
-        <DockBtn
-          testID="learn-dock-explore"
-          icon="telescope"
-          onPress={() => router.replace("/learn/explore")}
-        />
-      </View>
+      <LearnDock active="home" />
     </SafeAreaView>
   );
 }
-
-const DockBtn = ({
-  icon,
-  onPress,
-  active,
-  orange,
-  testID,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  active?: boolean;
-  orange?: boolean;
-  testID: string;
-}) => {
-  return (
-    <Pressable
-      testID={testID}
-      onPress={onPress}
-      style={[
-        dockStyles.btn,
-        active && dockStyles.btnActive,
-        orange && dockStyles.btnOrange,
-      ]}
-    >
-      <Ionicons
-        name={icon}
-        size={22}
-        color={orange ? "#FFFFFF" : active ? "#FFFFFF" : "#B0B0BD"}
-      />
-    </Pressable>
-  );
-};
-
-const dockStyles = StyleSheet.create({
-  btn: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: learnColors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: learnColors.border,
-  },
-  btnActive: {
-    borderColor: "#4A4A55",
-    backgroundColor: learnColors.surfaceHigh,
-  },
-  btnOrange: {
-    backgroundColor: learnColors.orange,
-    borderColor: learnColors.orange,
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-  },
-});
 
 const makeStyles = () =>
   StyleSheet.create({
@@ -294,7 +217,6 @@ const makeStyles = () =>
     avatarChipEmoji: { fontSize: 18 },
     body: {
       paddingHorizontal: 20,
-      paddingBottom: 120,
       gap: 20,
     },
     yellowCard: {
@@ -411,19 +333,5 @@ const makeStyles = () =>
       fontFamily: fonts.textSemi,
       fontSize: 12,
       color: learnColors.onSurfaceSecondary,
-    },
-    dock: {
-      position: "absolute",
-      left: 20,
-      right: 20,
-      bottom: 24,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      backgroundColor: learnColors.surface,
-      borderRadius: 26,
-      padding: 8,
-      borderWidth: 1,
-      borderColor: learnColors.border,
     },
   });

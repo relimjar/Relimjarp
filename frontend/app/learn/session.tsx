@@ -8,11 +8,17 @@ import {
   Text,
   View,
 } from "react-native";
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { fonts } from "@/src/theme";
 import { api } from "@/src/utils/api";
-import { learnColors, learnRadius } from "@/src/learn/theme";
+import { learnColors } from "@/src/learn/theme";
 
 interface Card {
   vocab_id: string;
@@ -33,7 +39,27 @@ export default function LearnSession() {
   const [loading, setLoading] = useState(true);
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
+  const flip = useSharedValue(0);
   const styles = useMemo(() => makeStyles(), []);
+
+  useEffect(() => {
+    flip.value = withTiming(flipped ? 1 : 0, { duration: 380 });
+  }, [flipped, flip]);
+
+  const frontStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(flip.value, [0, 1], [0, 180]);
+    return {
+      transform: [{ perspective: 1000 }, { rotateY: `${rotate}deg` }],
+      opacity: flip.value < 0.5 ? 1 : 0,
+    };
+  });
+  const backStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(flip.value, [0, 1], [180, 360]);
+    return {
+      transform: [{ perspective: 1000 }, { rotateY: `${rotate}deg` }],
+      opacity: flip.value >= 0.5 ? 1 : 0,
+    };
+  });
 
   useEffect(() => {
     (async () => {
@@ -42,6 +68,9 @@ export default function LearnSession() {
           language ? `/learn/session?language=${language}` : "/learn/session",
         );
         setCards(data.cards);
+      } catch {
+        // Not authenticated / offline — leave cards empty; UI will render the
+        // "Session complete!" empty state gracefully.
       } finally {
         setLoading(false);
       }
@@ -126,32 +155,44 @@ export default function LearnSession() {
         />
       </View>
 
-      {/* Flashcard */}
+      {/* Flashcard with 3D flip animation */}
       <Pressable
         testID="learn-session-card"
-        style={styles.card}
+        style={styles.cardWrap}
         onPress={() => setFlipped((f) => !f)}
       >
-        <View style={styles.badgeRow}>
-          {current.is_new ? (
-            <View style={styles.newBadge}>
-              <Text style={styles.newBadgeText}>NEW</Text>
-            </View>
-          ) : null}
-          {current.level ? (
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelBadgeText}>
-                {current.level.toUpperCase()}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        <Text style={styles.word}>{current.word}</Text>
-        {flipped ? (
+        <Animated.View style={[styles.card, styles.cardFront, frontStyle]}>
+          <View style={styles.badgeRow}>
+            {current.is_new ? (
+              <View style={styles.newBadge}>
+                <Text style={styles.newBadgeText}>NEW</Text>
+              </View>
+            ) : null}
+            {current.level ? (
+              <View style={styles.levelBadge}>
+                <Text style={styles.levelBadgeText}>
+                  {current.level.toUpperCase()}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.word}>{current.word}</Text>
+          <View style={styles.flipHintRow}>
+            <Ionicons name="sync" size={14} color="#0B0B0F" />
+            <Text style={styles.tapHint}>Tap card to reveal meaning</Text>
+          </View>
+        </Animated.View>
+
+        <Animated.View style={[styles.card, styles.cardBack, backStyle]}>
+          <Text style={styles.backEyebrow}>Meaning</Text>
           <Text style={styles.meaning}>{current.meaning}</Text>
-        ) : (
-          <Text style={styles.tapHint}>Tap card to reveal meaning</Text>
-        )}
+          <View style={styles.flipHintRow}>
+            <Ionicons name="sync" size={14} color="#FFFFFF" />
+            <Text style={[styles.tapHint, { color: "#FFFFFF", opacity: 0.7 }]}>
+              Grade your answer below
+            </Text>
+          </View>
+        </Animated.View>
       </Pressable>
 
       {/* Grade buttons */}
@@ -265,15 +306,43 @@ const makeStyles = () =>
       borderRadius: 2,
       backgroundColor: learnColors.yellow,
     },
-    card: {
+    cardWrap: {
       flex: 1,
       margin: 20,
-      backgroundColor: learnColors.yellow,
+    },
+    card: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
       borderRadius: 28,
       padding: 24,
       alignItems: "center",
       justifyContent: "center",
       gap: 14,
+      backfaceVisibility: "hidden",
+    },
+    cardFront: {
+      backgroundColor: learnColors.yellow,
+    },
+    cardBack: {
+      backgroundColor: "#25252E",
+      borderWidth: 1,
+      borderColor: learnColors.border,
+    },
+    backEyebrow: {
+      fontFamily: fonts.textBold,
+      fontSize: 11,
+      color: learnColors.yellow,
+      letterSpacing: 1.4,
+      textTransform: "uppercase",
+    },
+    flipHintRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 6,
     },
     badgeRow: {
       position: "absolute",
@@ -314,12 +383,11 @@ const makeStyles = () =>
       textAlign: "center",
     },
     meaning: {
-      fontFamily: fonts.textSemi,
-      fontSize: 16,
-      color: "#0B0B0F",
+      fontFamily: fonts.displayBold,
+      fontSize: 22,
+      color: "#FFFFFF",
       textAlign: "center",
-      lineHeight: 22,
-      opacity: 0.85,
+      lineHeight: 30,
     },
     tapHint: {
       fontFamily: fonts.textSemi,

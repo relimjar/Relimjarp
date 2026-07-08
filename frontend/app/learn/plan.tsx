@@ -6,8 +6,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
+import { LearnDock, useLearnDockPadding } from "@/src/learn/LearnDock";
 import { learnColors } from "@/src/learn/theme";
-import { LearnDock } from "./explore";
 
 /**
  * Learning Plan / Today — greeting header + Today↔Learning-plan toggle,
@@ -18,10 +18,11 @@ export default function LearnPlan() {
   const router = useRouter();
   const { user } = useAuth();
   const [tab, setTab] = useState<"today" | "plan">("today");
+  const dockPad = useLearnDockPadding();
   const shortName = (user?.name || "friend").split(" ")[0].slice(0, 8);
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
       {/* Top bar — streak + avatar */}
       <View style={styles.topBar}>
         <View style={{ flex: 1 }} />
@@ -34,7 +35,7 @@ export default function LearnPlan() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: dockPad }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.hi}>Hi, {shortName}</Text>
@@ -79,7 +80,11 @@ export default function LearnPlan() {
         </View>
 
         {/* Weekly goal pill */}
-        <View style={styles.goalPill}>
+        <Pressable
+          testID="learn-plan-set-goal"
+          onPress={() => router.push("/learn/set-goal")}
+          style={styles.goalPill}
+        >
           <View style={styles.goalIcon}>
             <Ionicons name="flag" size={16} color="#B0B0BD" />
           </View>
@@ -87,7 +92,7 @@ export default function LearnPlan() {
           <View style={styles.goalTrend}>
             <Ionicons name="bar-chart" size={15} color="#FFF" />
           </View>
-        </View>
+        </Pressable>
 
         {/* Assess card */}
         <View style={styles.assessCard} testID="learn-plan-assess-card">
@@ -98,7 +103,7 @@ export default function LearnPlan() {
           <Text style={styles.assessAttr}>Siam Joy</Text>
           <Pressable
             testID="learn-plan-find-level"
-            onPress={() => router.push("/learn/session")}
+            onPress={() => router.push("/learn/assessment")}
             style={styles.findLevelBtn}
           >
             <Text style={styles.findLevelText}>Find level</Text>
@@ -183,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarEmoji: { fontSize: 17 },
-  body: { paddingHorizontal: 20, paddingBottom: 130, gap: 16 },
+  body: { paddingHorizontal: 20, gap: 16 },
   hi: {
     fontFamily: fonts.displayBold,
     fontSize: 24,

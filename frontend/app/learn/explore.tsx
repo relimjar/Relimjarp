@@ -5,7 +5,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { fonts } from "@/src/theme";
-import { learnColors, learnRadius } from "@/src/learn/theme";
+import { LearnDock, useLearnDockPadding } from "@/src/learn/LearnDock";
+import { learnColors } from "@/src/learn/theme";
 
 /**
  * Learn / Explore — the discovery hub.
@@ -16,8 +17,9 @@ import { learnColors, learnRadius } from "@/src/learn/theme";
  */
 export default function LearnExplore() {
   const router = useRouter();
+  const dockPad = useLearnDockPadding();
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.topBar}>
         <Text style={styles.h1}>Explore</Text>
         <View style={styles.rightGroup}>
@@ -31,7 +33,7 @@ export default function LearnExplore() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, { paddingBottom: dockPad }]}
         showsVerticalScrollIndicator={false}
       >
         <Pressable
@@ -115,111 +117,10 @@ const ExploreCard = ({
   </Pressable>
 );
 
-// Shared floating dock used across learn pages.
-export const LearnDock = ({
-  active,
-}: {
-  active: "home" | "plan" | "classes" | "explore";
-}) => {
-  const router = useRouter();
-  return (
-    <View style={dockStyles.dock}>
-      <DockBtn
-        testID="learn-dock-home"
-        icon="home"
-        active={active === "home"}
-        onPress={() => router.replace("/learn/dashboard")}
-      />
-      <DockBtn
-        testID="learn-dock-plan"
-        icon="checkmark-circle"
-        active={active === "plan"}
-        onPress={() => router.replace("/learn/dashboard")}
-      />
-      <DockBtn
-        testID="learn-dock-classes"
-        icon="people"
-        orange
-        active={active === "classes"}
-        onPress={() => router.replace("/learn/classes")}
-      />
-      <DockBtn
-        testID="learn-dock-explore"
-        icon="telescope"
-        active={active === "explore"}
-        onPress={() => router.replace("/learn/explore")}
-      />
-    </View>
-  );
-};
-
-const DockBtn = ({
-  icon,
-  onPress,
-  active,
-  orange,
-  testID,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-  active?: boolean;
-  orange?: boolean;
-  testID: string;
-}) => (
-  <Pressable
-    testID={testID}
-    onPress={onPress}
-    style={[
-      dockStyles.btn,
-      active && dockStyles.btnActive,
-      orange && dockStyles.btnOrange,
-    ]}
-  >
-    <Ionicons
-      name={icon}
-      size={22}
-      color={orange ? "#FFFFFF" : active ? "#FFFFFF" : "#B0B0BD"}
-    />
-  </Pressable>
-);
-
-const dockStyles = StyleSheet.create({
-  dock: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    bottom: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: learnColors.surface,
-    borderRadius: 26,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: learnColors.border,
-  },
-  btn: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: learnColors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: learnColors.border,
-  },
-  btnActive: {
-    borderColor: "#4A4A55",
-    backgroundColor: learnColors.surfaceHigh,
-  },
-  btnOrange: {
-    backgroundColor: learnColors.orange,
-    borderColor: learnColors.orange,
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-  },
-});
+// Shared floating dock — imported from @/src/learn/LearnDock so every learn
+// screen renders exactly the same component. Kept re-exported here for
+// backwards-compat with existing imports elsewhere in the learn stack.
+export { LearnDock } from "@/src/learn/LearnDock";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: learnColors.bg },
@@ -257,7 +158,6 @@ const styles = StyleSheet.create({
   avatarEmoji: { fontSize: 17 },
   body: {
     paddingHorizontal: 20,
-    paddingBottom: 130,
     gap: 16,
   },
   searchChip: {
