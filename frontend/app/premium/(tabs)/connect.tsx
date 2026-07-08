@@ -180,7 +180,7 @@ export default function PremiumConnect() {
               <Text style={styles.langCode}>
                 {(item.native_language || "").toUpperCase()}
               </Text>
-              <View style={styles.langBar} />
+              <View style={styles.langFlowBar} />
             </View>
             <Ionicons
               name="swap-horizontal"
@@ -251,35 +251,46 @@ export default function PremiumConnect() {
         </Pressable>
       </View>
 
-      {/* Language tabs — pill-chip style matching the main app Connect */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.langTabScroll}
-        contentContainerStyle={styles.langTabRow}
-      >
-        {POPULAR_LANGS.map((t) => {
-          const active = lang === t.code;
-          return (
-            <Pressable
-              key={t.code}
-              testID={`premium-lang-tab-${t.code}`}
-              onPress={() => setLang(t.code)}
-              style={[styles.langChipTab, active && styles.langChipTabActive]}
-            >
-              <Text style={styles.flag}>{t.flag}</Text>
-              <Text
-                style={[
-                  styles.langChipTabText,
-                  active && styles.langChipTabTextActive,
-                ]}
+      {/* Language tabs — underline style with generous spacing, matches
+          main app's language filter. This whole block stays FIXED on screen
+          — only the FlatList of profiles below scrolls. */}
+      <View style={styles.langBar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.langBarRow}
+        >
+          {POPULAR_LANGS.map((t) => {
+            const active = lang === t.code;
+            return (
+              <Pressable
+                key={t.code}
+                testID={`premium-lang-tab-${t.code}`}
+                onPress={() => setLang(t.code)}
+                style={styles.langTabItem}
               >
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                <View style={styles.langTabInner}>
+                  <Text style={styles.flag}>{t.flag}</Text>
+                  <Text
+                    style={[
+                      styles.langTabText,
+                      active && styles.langTabTextActive,
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.langTabBar,
+                    active && styles.langTabBarActive,
+                  ]}
+                />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <View style={styles.countStrip}>
         <Ionicons name="diamond" size={11} color={premiumColors.gold} />
@@ -418,37 +429,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: premiumColors.onGold,
   },
-  langTabScroll: { flexGrow: 0, maxHeight: 52 },
-  langTabRow: {
-    paddingHorizontal: 20,
-    gap: 8,
-    alignItems: "center",
-    paddingBottom: 4,
+  langBar: {
+    backgroundColor: premiumColors.bg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: premiumColors.divider,
   },
-  langChipTab: {
+  langBarRow: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    gap: 26, // generous spacing between tabs
+    alignItems: "flex-start",
+  },
+  langTabItem: {
+    alignItems: "center",
+    paddingBottom: 0,
+    minWidth: 64,
+  },
+  langTabInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: premiumRadius.pill,
-    backgroundColor: premiumColors.surface,
-    borderWidth: 1,
-    borderColor: premiumColors.border,
+    paddingVertical: 12,
   },
-  langChipTabActive: {
-    backgroundColor: premiumColors.gold + "1F",
-    borderColor: premiumColors.gold,
-  },
-  flag: { fontSize: 15 },
-  langChipTabText: {
+  flag: { fontSize: 16 },
+  langTabText: {
     fontFamily: fonts.textBold,
-    fontSize: 13,
+    fontSize: 14,
     color: premiumColors.onSurfaceSecondary,
   },
-  langChipTabTextActive: {
+  langTabTextActive: {
     color: premiumColors.gold,
     fontFamily: fonts.displayBold,
+  },
+  langTabBar: {
+    height: 3,
+    width: "100%",
+    backgroundColor: "transparent",
+    borderRadius: 2,
+  },
+  langTabBarActive: {
+    backgroundColor: premiumColors.gold,
   },
   countStrip: {
     flexDirection: "row",
@@ -456,9 +476,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingBottom: 10,
-    paddingTop: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: premiumColors.divider,
+    paddingTop: 12,
   },
   countStripText: {
     fontFamily: fonts.textBold,
@@ -541,7 +559,7 @@ const styles = StyleSheet.create({
     color: premiumColors.gold,
     letterSpacing: 0.8,
   },
-  langBar: {
+  langFlowBar: {
     width: 14,
     height: 3,
     borderRadius: 2,
