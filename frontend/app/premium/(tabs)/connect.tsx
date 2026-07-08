@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { FlagIcon } from "@/src/components/FlagIcon";
 import { countryToCode } from "@/src/constants/countries";
 import { langName, PROFICIENCY_LEVELS } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
@@ -25,13 +26,13 @@ import { premiumColors, premiumRadius } from "@/src/premium/theme";
 
 // Fixed popular languages shown as tabs. The 6 languages most Premium
 // members will look for teachers in. Order matters — most-searched first.
-const POPULAR_LANGS: { code: string; label: string; flag: string }[] = [
-  { code: "en", label: "English", flag: "🇬🇧" },
-  { code: "es", label: "Spanish", flag: "🇪🇸" },
-  { code: "zh", label: "Chinese", flag: "🇨🇳" },
-  { code: "ko", label: "Korean", flag: "🇰🇷" },
-  { code: "ja", label: "Japanese", flag: "🇯🇵" },
-  { code: "fr", label: "French", flag: "🇫🇷" },
+const POPULAR_LANGS: { code: string; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Spanish" },
+  { code: "zh", label: "Chinese" },
+  { code: "ko", label: "Korean" },
+  { code: "ja", label: "Japanese" },
+  { code: "fr", label: "French" },
 ];
 
 export default function PremiumConnect() {
@@ -270,7 +271,7 @@ export default function PremiumConnect() {
                 style={styles.langTabItem}
               >
                 <View style={styles.langTabInner}>
-                  <Text style={styles.flag}>{t.flag}</Text>
+                  <FlagIcon code={t.code} size={22} />
                   <Text
                     style={[
                       styles.langTabText,
@@ -313,9 +314,7 @@ export default function PremiumConnect() {
           ListEmptyComponent={
             <View style={styles.emptyBox}>
               <View style={styles.emptyBadge}>
-                <Text style={{ fontSize: 32 }}>
-                  {POPULAR_LANGS.find((l) => l.code === lang)?.flag}
-                </Text>
+                <FlagIcon code={lang} size={48} />
               </View>
               <Text style={styles.emptyTitle}>No {currentLangLabel} teachers yet</Text>
               <Text style={styles.emptyBody}>
@@ -359,7 +358,7 @@ export default function PremiumConnect() {
                     onPress={() => toggleTeach(l.code)}
                     style={[styles.langChip, on && styles.langChipOn]}
                   >
-                    <Text style={styles.langChipFlag}>{l.flag}</Text>
+                    <FlagIcon code={l.code} size={20} />
                     <Text
                       style={[
                         styles.langChipText,
@@ -448,10 +447,9 @@ const styles = StyleSheet.create({
   langTabInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     paddingVertical: 12,
   },
-  flag: { fontSize: 16 },
   langTabText: {
     fontFamily: fonts.textBold,
     fontSize: 14,
@@ -687,7 +685,6 @@ const styles = StyleSheet.create({
     backgroundColor: premiumColors.gold,
     borderColor: premiumColors.gold,
   },
-  langChipFlag: { fontSize: 16 },
   langChipText: {
     fontFamily: fonts.textBold,
     fontSize: 13,

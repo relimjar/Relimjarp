@@ -28,8 +28,23 @@ export default function PremiumChats() {
   const load = useCallback(async () => {
     try {
       const data = await api.get<Conversation[]>("/chats");
-      // Premium club shows conversations where the partner is a VIP only.
-      setConversations(data.filter((c) => c.partner?.is_vip));
+      // Premium club shows conversations where the partner is either a VIP
+      // OR a Premium teacher (someone who has opted into teaching on
+      // Premium by setting `teach_languages`). This way, when a user
+      // messages any teacher from the Premium Connect page, the chat
+      // still appears here inside the Premium Club.
+      setConversations(
+        data.filter((c) => {
+          const p = c.partner as
+            | (Conversation["partner"] & { teach_languages?: string[] })
+            | undefined;
+          if (!p) return false;
+          if (p.is_vip) return true;
+          if (Array.isArray(p.teach_languages) && p.teach_languages.length > 0)
+            return true;
+          return false;
+        }),
+      );
     } catch {
       // keep previous list on transient errors
     } finally {
