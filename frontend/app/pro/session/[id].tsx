@@ -19,6 +19,8 @@ import { StatusBar } from "expo-status-bar";
 import { Avatar } from "@/src/components/Avatar";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/utils/api";
+import { VideoStream } from "@/src/pro/VideoStream";
+import { useProRtc } from "@/src/pro/useProRtc";
 import { proColors, proFonts, proRadius } from "@/src/pro/theme";
 
 interface Session {
@@ -27,8 +29,6 @@ interface Session {
   tutor: { id: string; name: string; avatar_url?: string; native_accent?: string };
   stream_room_token: string;
 }
-
-interface ChatMsg { id: string; mine: boolean; text: string }
 
 export default function ProSession() {
   const router = useRouter();
@@ -40,7 +40,6 @@ export default function ProSession() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [seconds, setSeconds] = useState(0);
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [draft, setDraft] = useState("");
   const timer = useRef<any>(null);
 
@@ -58,6 +57,17 @@ export default function ProSession() {
     return () => clearInterval(timer.current);
   }, []);
 
+  const {
+    connected,
+    messages,
+    sendChat,
+    localStream,
+    remoteStream,
+    peerPresent,
+    mediaError,
+    toggleTrack,
+  } = useProRtc(session?.stream_room_token, user?.name || "You");
+
   const clock = `${Math.floor(seconds / 60)
     .toString()
     .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
@@ -65,15 +75,28 @@ export default function ProSession() {
   const endCall = async () => {
     try {
       await api.post(`/pro/sessions/${id}/end`);
-    } catch {}
+    } catch {
+      // ignore
+    }
     router.replace("/pro/home");
   };
 
-  const sendMsg = () => {
+  const send = () => {
     const t = draft.trim();
     if (!t) return;
-    setMessages((m) => [...m, { id: `${Date.now()}`, mine: true, text: t }]);
+    sendChat(t);
     setDraft("");
+  };
+
+  const onToggleMic = () => {
+    const next = !micOn;
+    setMicOn(next);
+    toggleTrack("audio", next);
+  };
+  const onToggleCam = () => {
+    const next = !camOn;
+    setCamOn(next);
+    toggleTrack("video", next);
   };
 
   if (loading) {
@@ -85,28 +108,50 @@ export default function ProSession() {
   }
 
   const tutor = session?.tutor;
+  const showRemoteVideo = !!remoteStream;
+  const showLocalVideo = !!localStream && camOn;
 
   return (
     <View style={styles.screen} testID="pro-session-screen">
       <StatusBar style="light" />
       {/* Tutor primary feed (65%) */}
       <View style={styles.tutorFeed}>
-        {tutor?.avatar_url ? (
-          <Image source={{ uri: tutor.avatar_url }} style={styles.feedImg} contentFit="cover" blurRadius={2} />
-        ) : null}
-        <View style={styles.feedScrim} />
+        {showRemoteVideo ? (
+          <VideoStream stream={remoteStream} style={StyleSheet.absoluteFillObject as any} />
+        ) : (
+          <>
+            {tutor?.avatar_url ? (
+              <Image
+                source={{ uri: tutor.avatar_url }}
+                style={styles.feedImg}
+                contentFit="cover"
+                blurRadius={3}
+              />
+            ) : null}
+            <View style={styles.feedScrim} />
+            <View style={styles.waitingBox}>
+              <Avatar name={tutor?.name} url={tutor?.avatar_url} size={72} />
+              <Text style={styles.waitingText}>
+                {peerPresent ? "Connecting video…" : `Waiting for ${tutor?.name || "tutor"} to join…`}
+              </Text>
+              <ActivityIndicator color="#fff" style={{ marginTop: 6 }} />
+            </View>
+          </>
+        )}
+
         <SafeAreaView edges={["top"]} style={styles.feedTopBar}>
           <View style={styles.livePill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE · {clock}</Text>
+            <View style={[styles.liveDot, { backgroundColor: connected ? "#4ADE80" : "#EF5B4C" }]} />
+            <Text style={styles.liveText}>{connected ? "LIVE" : "…"} · {clock}</Text>
           </View>
           <View style={styles.simPill}>
-            <Ionicons name="flask-outline" size={12} color={"#fff"} />
-            <Text style={styles.simText}>Simulated video</Text>
+            <Ionicons name="wifi" size={12} color={"#fff"} />
+            <Text style={styles.simText}>{peerPresent ? "Peer connected" : "P2P · WebRTC"}</Text>
           </View>
         </SafeAreaView>
+
         <View style={styles.tutorMeta}>
-          <Avatar name={tutor?.name} url={tutor?.avatar_url} size={40} />
+          <Avatar name={tutor?.name} url={tutor?.avatar_url} size={36} />
           <View>
             <Text style={styles.tutorName}>{tutor?.name}</Text>
             <Text style={styles.tutorAccent}>{tutor?.native_accent}</Text>
@@ -115,14 +160,18 @@ export default function ProSession() {
 
         {/* Student PiP (35%) */}
         <View style={styles.pip}>
-          {camOn ? (
-            <View style={styles.pipInner}>
-              <Avatar name={user?.name} url={user?.avatar_url} size={54} />
-              <Text style={styles.pipName}>You</Text>
-            </View>
+          {showLocalVideo ? (
+            <VideoStream stream={localStream} muted mirror style={StyleSheet.absoluteFillObject as any} />
           ) : (
             <View style={styles.pipInner}>
-              <Ionicons name="videocam-off" size={26} color={proColors.inkFaint} />
+              {camOn ? (
+                <>
+                  <Avatar name={user?.name} url={user?.avatar_url} size={48} />
+                  <Text style={styles.pipName}>{mediaError ? "No camera" : "You"}</Text>
+                </>
+              ) : (
+                <Ionicons name="videocam-off" size={24} color={proColors.inkFaint} />
+              )}
             </View>
           )}
         </View>
@@ -146,11 +195,21 @@ export default function ProSession() {
             >
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.chatList}>
                 {messages.length === 0 ? (
-                  <Text style={styles.chatEmpty}>Say hello — messages & translations appear here.</Text>
+                  <Text style={styles.chatEmpty}>
+                    Say hello — messages are delivered live to the other participant.
+                  </Text>
                 ) : (
                   messages.map((m) => (
-                    <View key={m.id} style={[styles.msg, m.mine ? styles.msgMine : styles.msgTheirs]}>
-                      <Text style={[styles.msgText, m.mine && { color: proColors.onAccent }]}>{m.text}</Text>
+                    <View
+                      key={m.id}
+                      style={[styles.msg, m.mine ? styles.msgMine : styles.msgTheirs]}
+                    >
+                      {!m.mine && m.name ? (
+                        <Text style={styles.msgName}>{m.name}</Text>
+                      ) : null}
+                      <Text style={[styles.msgText, m.mine && { color: proColors.onAccent }]}>
+                        {m.text}
+                      </Text>
                     </View>
                   ))
                 )}
@@ -160,11 +219,12 @@ export default function ProSession() {
                   testID="pro-session-chat-input"
                   value={draft}
                   onChangeText={setDraft}
+                  onSubmitEditing={send}
                   placeholder="Type a message…"
                   placeholderTextColor={proColors.inkFaint}
                   style={styles.chatInput}
                 />
-                <Pressable onPress={sendMsg} style={styles.chatSend} testID="pro-session-chat-send">
+                <Pressable onPress={send} style={styles.chatSend} testID="pro-session-chat-send">
                   <Ionicons name="send" size={16} color={proColors.onAccent} />
                 </Pressable>
               </View>
@@ -172,7 +232,8 @@ export default function ProSession() {
           ) : (
             <ScrollView contentContainerStyle={styles.chatList}>
               <Text style={styles.chatEmpty}>
-                Highlighted phrases from your lesson become study notes here — coming online with live video.
+                Highlight phrases during your lesson to save them as study notes.
+                Live transcript arrives with the video connection.
               </Text>
             </ScrollView>
           )}
@@ -182,10 +243,10 @@ export default function ProSession() {
       {/* Floating glass control dock */}
       <SafeAreaView edges={["bottom"]} style={styles.dockWrap} pointerEvents="box-none">
         <View style={styles.dock}>
-          <Pressable onPress={() => setMicOn((v) => !v)} style={[styles.dockBtn, !micOn && styles.dockBtnOff]} testID="pro-dock-mic">
+          <Pressable onPress={onToggleMic} style={[styles.dockBtn, !micOn && styles.dockBtnOff]} testID="pro-dock-mic">
             <Ionicons name={micOn ? "mic" : "mic-off"} size={22} color={micOn ? proColors.ink : "#fff"} />
           </Pressable>
-          <Pressable onPress={() => setCamOn((v) => !v)} style={[styles.dockBtn, !camOn && styles.dockBtnOff]} testID="pro-dock-cam">
+          <Pressable onPress={onToggleCam} style={[styles.dockBtn, !camOn && styles.dockBtnOff]} testID="pro-dock-cam">
             <Ionicons name={camOn ? "videocam" : "videocam-off"} size={22} color={camOn ? proColors.ink : "#fff"} />
           </Pressable>
           <Pressable onPress={() => setTab((t) => (t === "chat" ? null : "chat"))} style={[styles.dockBtn, tab === "chat" && styles.dockBtnActive]} testID="pro-dock-chat">
@@ -208,7 +269,9 @@ const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
   tutorFeed: { flex: 1, backgroundColor: "#171310" },
   feedImg: { ...StyleSheet.absoluteFillObject, opacity: 0.9 },
-  feedScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(11,10,9,0.35)" },
+  feedScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(11,10,9,0.45)" },
+  waitingBox: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", gap: 12 },
+  waitingText: { fontFamily: proFonts.sansMedium, fontSize: 14, color: "#fff", textAlign: "center", paddingHorizontal: 30 },
   feedTopBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -293,6 +356,7 @@ const styles = StyleSheet.create({
   msg: { maxWidth: "80%", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 9 },
   msgMine: { alignSelf: "flex-end", backgroundColor: proColors.terracotta },
   msgTheirs: { alignSelf: "flex-start", backgroundColor: proColors.surfaceMuted },
+  msgName: { fontFamily: proFonts.sansSemi, fontSize: 10.5, color: proColors.inkSoft, marginBottom: 2 },
   msgText: { fontFamily: proFonts.sans, fontSize: 14, color: proColors.ink },
   chatInputRow: {
     flexDirection: "row",

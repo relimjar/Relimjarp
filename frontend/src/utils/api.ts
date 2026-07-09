@@ -11,6 +11,10 @@ export const getAuthToken = () => authToken;
 export const wsUrl = (): string =>
   `${API_URL!.replace(/^http/, "ws")}/api/ws?token=${authToken}`;
 
+// Room-based signaling socket for the Pro classroom (WebRTC + in-call chat).
+export const proRtcUrl = (room: string): string =>
+  `${API_URL!.replace(/^http/, "ws")}/api/pro/rtc/${room}?token=${authToken}`;
+
 async function request<T>(
   method: string,
   path: string,

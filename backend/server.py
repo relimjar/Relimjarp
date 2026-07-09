@@ -151,6 +151,63 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         manager.disconnect(user_id, websocket)
 
 
+# --------------------------------------------------------------------------- #
+# Pro classroom — room-based WebRTC signaling relay (free: peers only need the
+# room token). Relays offer/answer/ICE + real in-call chat + join/leave
+# presence between the (max 2) participants of a Pro lesson room. No API keys.
+# --------------------------------------------------------------------------- #
+pro_rtc_rooms: dict[str, dict[str, WebSocket]] = {}
+
+
+@app.websocket("/api/pro/rtc/{room}")
+async def pro_rtc_endpoint(websocket: WebSocket, room: str, token: str):
+    import json as _json
+
+    try:
+        user_id = decode_token(token)
+    except PyJWTError:
+        await websocket.close(code=4001)
+        return
+    await websocket.accept()
+    peers = pro_rtc_rooms.setdefault(room, {})
+    # Unique connection key so the same user opening twice doesn't clash.
+    conn_key = f"{user_id}:{id(websocket)}"
+    peers[conn_key] = websocket
+
+    async def relay(payload: dict, exclude: str | None = None):
+        for k, ws in list(peers.items()):
+            if k == exclude:
+                continue
+            try:
+                await ws.send_json(payload)
+            except Exception:
+                peers.pop(k, None)
+
+    # Tell the newcomer how many peers are already here, and notify others.
+    try:
+        await websocket.send_json(
+            {"type": "rtc_welcome", "peers": len(peers) - 1, "self": user_id}
+        )
+        await relay({"type": "rtc_peer_join", "from": user_id}, exclude=conn_key)
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                data = _json.loads(raw)
+            except ValueError:
+                continue
+            data["from"] = user_id
+            # Relay everything (offer/answer/ice/chat) to the other peer(s).
+            await relay(data, exclude=conn_key)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        peers.pop(conn_key, None)
+        if peers:
+            await relay({"type": "rtc_peer_leave", "from": user_id})
+        else:
+            pro_rtc_rooms.pop(room, None)
+
+
 for router in (
     auth_router,
     users_router,
