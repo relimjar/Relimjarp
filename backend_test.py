@@ -8,7 +8,7 @@ import json
 from typing import Optional
 
 # Backend URL from frontend/.env
-BASE_URL = "https://voice-room-ui.preview.emergentagent.com/api"
+BASE_URL = "https://chat-premium-colors.preview.emergentagent.com/api"
 
 # Test credentials
 MEI_EMAIL = "mei@demo.com"
