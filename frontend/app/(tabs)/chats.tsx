@@ -39,6 +39,13 @@ const SHORTCUTS: Shortcut[] = [
     route: "/pro",
   },
   {
+    key: "lessons",
+    label: "Lessons",
+    icon: "sparkles",
+    color: "#3AC569",
+    route: "/lessons",
+  },
+  {
     key: "premium",
     label: "Premium",
     icon: "diamond",

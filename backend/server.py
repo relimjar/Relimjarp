@@ -28,6 +28,7 @@ from routes.admin import router as admin_router  # noqa: E402
 from routes.push import router as push_router  # noqa: E402
 from routes.rooms import router as rooms_router  # noqa: E402
 from routes.pro import router as pro_router, seed_pro_tutors  # noqa: E402
+from routes.lessons import router as lessons_router  # noqa: E402
 from routes.users import router as users_router  # noqa: E402
 from ws_manager import manager  # noqa: E402
 
@@ -224,6 +225,7 @@ for router in (
     push_router,
     learn_router,
     pro_router,
+    lessons_router,
 ):
     app.include_router(router, prefix="/api")
 

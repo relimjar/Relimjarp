@@ -35,6 +35,10 @@ pro_transcripts_col = db["pro_transcripts"]
 pro_wallets_col = db["pro_wallets"]
 pro_availability_col = db["pro_availability"]
 
+# --- Lessons (gamified language-learning sub-app) collections ---
+lessons_profiles_col = db["lessons_profiles"]
+lessons_progress_col = db["lessons_progress"]
+
 
 async def ensure_indexes():
     """Idempotent index creation. Each index is attempted independently so a
