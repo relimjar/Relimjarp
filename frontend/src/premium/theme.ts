@@ -2,6 +2,8 @@
 // Kept in its own module so screens can pick it up without touching the
 // main app theme.
 
+import { ThemeColors } from "@/src/theme";
+
 export const premiumColors = {
   // Backgrounds
   bg: "#0F0623",           // very deep royal black-purple
@@ -42,3 +44,36 @@ export const premiumRadius = {
   xl: 26,
   pill: 999,
 } as const;
+
+/**
+ * premiumColors mapped onto the shared `ThemeColors` shape so any screen that
+ * is written against the main theme (e.g. the chat conversation screen) can be
+ * rendered in the royal-purple + gold Premium palette simply by feeding it this
+ * object instead of the light/dark theme. This lets the Premium Club reuse the
+ * exact same feature-rich screens — only the colours/theme differ.
+ *
+ * Key intent for chat:
+ *  - brand (my sent bubbles + send button) -> gold
+ *  - surface (screen/header/input bg) -> deep purple surface
+ *  - surfaceSecondary (their bubbles + input pill) -> raised purple
+ */
+export const premiumThemeColors: ThemeColors = {
+  surface: premiumColors.surface,
+  onSurface: premiumColors.onSurface,
+  surfaceSecondary: premiumColors.surfaceRaised,
+  onSurfaceSecondary: premiumColors.onSurfaceSecondary,
+  surfaceTertiary: premiumColors.surfaceHigh,
+  onSurfaceTertiary: premiumColors.onSurfaceTertiary,
+  brand: premiumColors.gold,
+  onBrand: premiumColors.onGold,
+  brandSecondary: premiumColors.goldSoft,
+  onBrandSecondary: premiumColors.onGold,
+  brandTertiary: premiumColors.chip,
+  onBrandTertiary: premiumColors.goldSoft,
+  success: premiumColors.success,
+  warning: premiumColors.goldSoft,
+  error: premiumColors.error,
+  border: premiumColors.border,
+  borderStrong: premiumColors.onSurfaceTertiary,
+  divider: premiumColors.divider,
+};

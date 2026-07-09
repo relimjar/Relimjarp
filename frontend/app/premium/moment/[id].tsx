@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -13,9 +12,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Avatar } from "@/src/components/Avatar";
+import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
 import { api, Moment, MomentComment } from "@/src/utils/api";
 import { timeAgo } from "@/src/utils/time";
@@ -30,6 +31,7 @@ import { premiumColors, premiumRadius } from "@/src/premium/theme";
 export default function PremiumMomentDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [moment, setMoment] = useState<Moment | null>(null);
   const [comment, setComment] = useState("");
   const [posting, setPosting] = useState(false);
@@ -49,8 +51,11 @@ export default function PremiumMomentDetail() {
   }, [id]);
 
   useEffect(() => {
+    // Wait until auth is restored (the moments endpoint requires a token), so
+    // a cold-start / deep-link into this screen doesn't show "not found".
+    if (!user) return;
     load();
-  }, [load]);
+  }, [load, user]);
 
   const toggleLike = async () => {
     if (!moment) return;
@@ -119,13 +124,12 @@ export default function PremiumMomentDetail() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]} testID="premium-moment-detail">
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]} testID="premium-moment-detail">
       <PremiumTopBar router={router} title="Moment" />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "web" ? undefined : "translate-with-padding"}
         style={{ flex: 1 }}
-        keyboardVerticalOffset={90}
       >
         <ScrollView
           contentContainerStyle={styles.body}
@@ -539,7 +543,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: premiumColors.border,
     padding: 10,
-    paddingBottom: 16,
+    paddingBottom: 10,
   },
   replyBanner: {
     flexDirection: "row",

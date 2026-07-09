@@ -21,7 +21,7 @@ import { countryToCode } from "@/src/constants/countries";
 import { langName, PROFICIENCY_LEVELS } from "@/src/constants/languages";
 import { useAuth } from "@/src/context/AuthContext";
 import { fonts } from "@/src/theme";
-import { api, User } from "@/src/utils/api";
+import { api, Conversation, User } from "@/src/utils/api";
 import { premiumColors, premiumRadius } from "@/src/premium/theme";
 
 // Fixed popular languages shown as tabs. The 6 languages most Premium
@@ -69,6 +69,22 @@ export default function PremiumConnect() {
   );
 
   const iTeach = useMemo(() => new Set(user?.teach_languages || []), [user]);
+
+  // Start (or resume) a conversation with a member and open it inside the
+  // Premium-themed chat (gold + royal purple) via the `premium=1` flag.
+  const openChat = async (memberId: string) => {
+    try {
+      const conv = await api.post<Conversation>("/chats", {
+        partner_id: memberId,
+      });
+      router.push(`/chat/${conv.id}?premium=1`);
+    } catch (e) {
+      Alert.alert(
+        "Message",
+        e instanceof Error ? e.message : "Could not start the chat.",
+      );
+    }
+  };
 
   const toggleTeach = async (code: string) => {
     if (!user || applyBusy) return;
@@ -213,7 +229,7 @@ export default function PremiumConnect() {
           hitSlop={8}
           onPress={(e) => {
             e.stopPropagation();
-            router.push(`/chat/new?userId=${item.id}`);
+            openChat(item.id);
           }}
           style={styles.waveBtn}
         >

@@ -101,6 +101,34 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Test Run — Premium Chat Theme + Premium Moment Comment Box Fix (Round 16)
+user_problem_statement: (1) Premium app chat conversation must render in the Premium (royal-purple + gold) theme, not the main app theme. Messaging someone from Premium should open a premium-coloured chat. (2) In Premium moment detail, the comment/reply text box was collapsing into the device's bottom gesture bar — fix it (add bottom safe-area). (3) Verify reply flow shows the reply banner correctly.
+
+frontend:
+  - task: "Premium chat conversation uses premium theme via ?premium=1 param"
+    implemented: true
+    working: true
+    file: "frontend/app/chat/[id].tsx, frontend/src/premium/theme.ts, frontend/app/premium/(tabs)/chats.tsx, frontend/app/premium/(tabs)/connect.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added premiumThemeColors (premiumColors mapped onto ThemeColors) so the shared chat screen renders in gold+purple. chat/[id].tsx reads premium=1 param → uses premiumThemeColors + light StatusBar. Premium chats list navigates /chat/{id}?premium=1. Premium connect message btn now POST /chats then opens /chat/{conv.id}?premium=1 (was broken /chat/new?userId=). Verified via screenshot: deep purple bg, cream text, GOLD sent bubble, purple input pill."
+  - task: "Premium moment detail comment box no longer collapses into device bottom bar"
+    implemented: true
+    working: true
+    file: "frontend/app/premium/moment/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "SafeAreaView edges top->[top,bottom]; switched to react-native-keyboard-controller KeyboardAvoidingView (translate-with-padding) like main app; composeBar paddingBottom 16->10. Also gated load() on auth-ready (user) to avoid cold-start 'Moment not found'. Verified via screenshot: compose bar + reply banner sit above bottom, comment posts, reply banner 'Replying to Mei Lin' shows."
+
+
 ## Test Run — Profile Redesign (backend changes)
 user_problem_statement: Redesigned Me/Edit/Other-user profile screens (HelloTalk style). Backend additions to support them.
 

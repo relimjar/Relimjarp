@@ -145,7 +145,7 @@ export default function PremiumChats() {
             <Pressable
               testID={`premium-chat-row-${item.id}`}
               style={styles.row}
-              onPress={() => router.push(`/chat/${item.id}`)}
+              onPress={() => router.push(`/chat/${item.id}?premium=1`)}
             >
               <Avatar
                 name={item.partner?.name}

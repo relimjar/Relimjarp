@@ -29,6 +29,7 @@ import {
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 
 import { Avatar } from "@/src/components/Avatar";
 import { BackButton } from "@/src/components/BackButton";
@@ -42,6 +43,7 @@ import { useCall } from "@/src/context/CallContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { useChatSocket } from "@/src/hooks/use-chat-socket";
 import { fonts, radius, spacing, ThemeColors } from "@/src/theme";
+import { premiumThemeColors } from "@/src/premium/theme";
 import { api, Conversation, Message, mediaUrl } from "@/src/utils/api";
 import { clockTime } from "@/src/utils/time";
 
@@ -103,10 +105,14 @@ const QUICK_TEMPLATES = [
 ];
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, premium } = useLocalSearchParams<{ id: string; premium?: string }>();
   const router = useRouter();
   const { user, setUser } = useAuth();
-  const { colors } = useTheme();
+  const { colors: themeColors } = useTheme();
+  // When the chat is opened from the Premium Club, render the exact same
+  // screen in the royal-purple + gold palette so the experience feels premium.
+  const isPremium = premium === "1";
+  const colors = isPremium ? premiumThemeColors : themeColors;
   const { startCall } = useCall();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -689,6 +695,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]} testID="chat-screen">
+      {isPremium && <StatusBar style="light" />}
       <View style={styles.header}>
         <BackButton testID="chat-back-btn" />
         {partner && (
