@@ -101,6 +101,39 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Test Run — Phase 2: Unified Admin Dashboard with App Switcher (Main/Premium/Pro)
+user_problem_statement: One single admin dashboard controls the whole ecosystem (main app + all sub-apps). It has an app switcher — switching by name (Main App / Premium / Pro) lets the admin fully control that app from the same console.
+
+backend:
+  - task: "Admin control endpoints for Pro sub-app + Premium (VIP)"
+    implemented: true
+    working: true
+    file: "backend/routes/admin.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New admin-only endpoints (require is_admin): GET /admin/pro/stats, GET /admin/pro/tutors, POST /admin/pro/tutors (create), PUT /admin/pro/tutors/{id} (update incl is_online/featured/rating), DELETE /admin/pro/tutors/{id}, GET /admin/pro/sessions, POST /admin/pro/sessions/{id}/end (force end), GET /admin/premium/stats, GET /admin/premium/members. Verified via curl (pro/stats, pro/tutors, premium/stats). Needs full auth + CRUD testing. Admin creds: admin@lingua.app / Admin1234!. Non-admin (mei@demo.com) must get 403."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL ADMIN CONTROL ENDPOINTS FULLY FUNCTIONAL (11/11 tests passed, 0 failures). Comprehensive testing completed with admin@lingua.app and mei@demo.com. PRO SUB-APP ENDPOINTS: (1) GET /api/admin/pro/stats returns all 7 required integer fields (tutors=9, online_tutors=6, students=4, total_sessions=11, active_sessions=4, completed_sessions=7, minutes_taught=2) ✅ (2) GET /api/admin/pro/tutors returns list of 9 tutors with all required fields (id, name, is_online, featured, rating, specialties) ✅ (3) POST /api/admin/pro/tutors creates tutor with role='tutor', returns 201 with id and all fields ✅ (4) PUT /api/admin/pro/tutors/{id} successfully updates is_online (false), featured (true), rating (4.5), teaches/languages (['es']), invalid id returns 404 ✅ (5) DELETE /api/admin/pro/tutors/{id} deletes tutor (ok:true), second delete returns 404, invalid id returns 404 ✅ (6) GET /api/admin/pro/sessions returns list of 11 sessions with all required fields (id, status, student, tutor, call_duration) ✅ (7) POST /api/admin/pro/sessions/{id}/end successfully ends active session (ok:true, status:completed), invalid id returns 404 ✅. PREMIUM ENDPOINTS: (8) GET /api/admin/premium/stats returns all 4 required integer fields (vip_users=4, vip_weekly=0, vip_monthly=0, vip_lifetime=0) ✅ (9) GET /api/admin/premium/members returns list of 4 VIP members with all required fields (id, name, email, vip_tier, is_vip=true) ✅. AUTHORIZATION: (10) Non-admin (mei) correctly rejected with 403 ✅ (11) No token correctly rejected with 401 ✅. NO CRITICAL ISSUES FOUND. All admin control endpoints working perfectly with correct data types, validation, error handling, and authorization enforcement. Ready for main agent to summarize and finish."
+
+frontend:
+  - task: "Admin dashboard app switcher + Pro/Premium management screens"
+    implemented: true
+    working: true
+    file: "frontend/app/admin-x7k2p9.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Added App Switcher (Main/Premium/Pro) above tab pills; per-app tab sets. New admin components: ProHome (stats), ProTutors (add/feature/online-toggle/rating/delete), ProSessions (force end), PremiumHome (VIP stats + revoke). Verified via screenshot: switcher works, Pro overview + tutors render with full controls."
+
+
 ## Test Run — "Pro" 1-on-1 Video Tutoring Sub-App (Phase 1 foundation)
 user_problem_statement: Add a "Pro" card to the main chat screen's top shortcut row that opens a whole new sub-app (Cambly-style 1-on-1 video language tutoring). Navbar mirrors main app icon layout but new icons: Home, Tutors, Learn, Progress, Profile. Warm Neo-Minimalism theme. Student + Tutor modes. No own auth (uses main app user). WebRTC video later (currently simulated). NOTE: A future phase adds a single unified admin dashboard with an app switcher (Main/Premium/Pro).
 
@@ -136,12 +169,12 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Pro sub-app API — profiles, tutors, matchmaking, sessions, wallet, progress, availability"
+    - "Admin control endpoints for Pro sub-app + Premium (VIP)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -151,6 +184,10 @@ agent_communication:
       message: "Implemented Pro sub-app backend API with all endpoints. Please test comprehensively using mei@demo.com / Demo1234! and diego@demo.com / Demo1234!. Test all /api/pro endpoints including profile management, role switching, tutor listing/filtering, matchmaking, session management, wallet, progress tracking, and availability. Verify auth enforcement (401/403 without token). Do NOT test frontend."
     - agent: "testing"
       message: "✅ PRO SUB-APP BACKEND API FULLY FUNCTIONAL (29/30 tests passed, 1 minor observation). Comprehensive testing completed with mei@demo.com and diego@demo.com. ALL CRITICAL FUNCTIONALITY WORKING: Profile auto-creation with 60 MIN wallet ✅, Profile updates persist correctly ✅, Role switching (student↔tutor) works with validation ✅, 8 demo tutors seeded with correct sorting ✅, Language and search filters work ✅, Tutor detail endpoint works ✅, Instant matchmaking creates active sessions ✅, Language-specific and tutor-specific matching work ✅, Session ownership isolation enforced (403 for other users) ✅, Session ending sets completed status and increments tutor lessons_taught ✅, Idempotent session ending ✅, Wallet returns correct balance/currency ✅, Progress tracking works (lessons_completed>=1 after completing session) ✅, Availability CRUD operations work ✅, Auth enforcement working (401/403 without token) ✅. Minor observation: Tutor list returned 9 instead of 8 (extra tutor from previous test run), but seeding and filtering logic is correct. NO CRITICAL ISSUES FOUND. Ready for main agent to summarize and finish."
+    - agent: "main"
+      message: "Implemented unified admin dashboard Phase 2 with admin control endpoints for Pro sub-app and Premium VIP management. Please test all new admin endpoints: GET /api/admin/pro/stats (7 integer fields), GET /api/admin/pro/tutors (list with id/name/is_online/featured/rating/specialties), POST /api/admin/pro/tutors (create with name/native_accent/teaches/specialties/hourly_rate/avatar_url), PUT /api/admin/pro/tutors/{id} (update is_online/featured/rating/teaches, 404 for invalid id), DELETE /api/admin/pro/tutors/{id} (delete, 404 on second delete), GET /api/admin/pro/sessions (list with id/status/student/tutor/call_duration), POST /api/admin/pro/sessions/{id}/end (force end, returns ok:true and status:completed, 404 for invalid id), GET /api/admin/premium/stats (4 integer fields vip_users/vip_weekly/vip_monthly/vip_lifetime), GET /api/admin/premium/members (list VIP users with id/name/email/vip_tier). Test authorization: admin@lingua.app / Admin1234! should work (200/201), mei@demo.com should get 403, no token should get 401. Do NOT test frontend."
+    - agent: "testing"
+      message: "✅ ALL ADMIN CONTROL ENDPOINTS FULLY FUNCTIONAL (11/11 tests passed, 0 failures). Comprehensive testing completed with admin@lingua.app and mei@demo.com. PRO SUB-APP ENDPOINTS: (1) GET /api/admin/pro/stats returns all 7 required integer fields (tutors=9, online_tutors=6, students=4, total_sessions=11, active_sessions=4, completed_sessions=7, minutes_taught=2) ✅ (2) GET /api/admin/pro/tutors returns list of 9 tutors with all required fields (id, name, is_online, featured, rating, specialties) ✅ (3) POST /api/admin/pro/tutors creates tutor with role='tutor', returns 201 with id and all fields ✅ (4) PUT /api/admin/pro/tutors/{id} successfully updates is_online (false), featured (true), rating (4.5), teaches/languages (['es']), invalid id returns 404 ✅ (5) DELETE /api/admin/pro/tutors/{id} deletes tutor (ok:true), second delete returns 404, invalid id returns 404 ✅ (6) GET /api/admin/pro/sessions returns list of 11 sessions with all required fields (id, status, student, tutor, call_duration) ✅ (7) POST /api/admin/pro/sessions/{id}/end successfully ends active session (ok:true, status:completed), invalid id returns 404 ✅. PREMIUM ENDPOINTS: (8) GET /api/admin/premium/stats returns all 4 required integer fields (vip_users=4, vip_weekly=0, vip_monthly=0, vip_lifetime=0) ✅ (9) GET /api/admin/premium/members returns list of 4 VIP members with all required fields (id, name, email, vip_tier, is_vip=true) ✅. AUTHORIZATION: (10) Non-admin (mei) correctly rejected with 403 ✅ (11) No token correctly rejected with 401 ✅. NO CRITICAL ISSUES FOUND. All admin control endpoints working perfectly with correct data types, validation, error handling, and authorization enforcement. Ready for main agent to summarize and finish."
 
 
 ## Test Run — Premium Chat Theme + Premium Moment Comment Box Fix (Round 16)

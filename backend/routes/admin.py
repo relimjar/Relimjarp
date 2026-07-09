@@ -16,10 +16,13 @@ from db import (
     messages_col,
     moments_col,
     notifications_col,
+    pro_profiles_col,
+    pro_sessions_col,
     rooms_col,
     users_col,
 )
 from routes.market import CATALOG
+from routes.pro import profile_public, session_public
 from routes.push import send_push
 from ws_manager import manager
 
@@ -457,3 +460,168 @@ async def remove_integration_file(file_id: str, admin: AdminUser):
     if path.exists():
         path.unlink()
     return _integration_file_status(file_id)
+
+
+
+# ===================================================================== #
+# Unified control — "Pro" sub-app (1-on-1 video tutoring)
+# The single admin console switches between Main / Premium / Pro and
+# fully controls each from here.
+# ===================================================================== #
+@router.get("/pro/stats")
+async def pro_stats(admin: AdminUser):
+    tutors = await pro_profiles_col.count_documents({"role": "tutor"})
+    online_tutors = await pro_profiles_col.count_documents(
+        {"role": "tutor", "is_online": True}
+    )
+    students = await pro_profiles_col.count_documents({"role": "student"})
+    total_sessions = await pro_sessions_col.count_documents({})
+    active_sessions = await pro_sessions_col.count_documents({"status": "active"})
+    completed_sessions = await pro_sessions_col.count_documents(
+        {"status": "completed"}
+    )
+    minutes_pipeline = [
+        {"$group": {"_id": None, "total": {"$sum": "$call_duration"}}}
+    ]
+    agg = await pro_sessions_col.aggregate(minutes_pipeline).to_list(1)
+    total_minutes = round((agg[0]["total"] if agg else 0) / 60)
+    return {
+        "tutors": tutors,
+        "online_tutors": online_tutors,
+        "students": students,
+        "total_sessions": total_sessions,
+        "active_sessions": active_sessions,
+        "completed_sessions": completed_sessions,
+        "minutes_taught": total_minutes,
+    }
+
+
+@router.get("/pro/tutors")
+async def pro_list_tutors(admin: AdminUser):
+    docs = await pro_profiles_col.find({"role": "tutor"}).to_list(300)
+    docs.sort(
+        key=lambda d: (d.get("featured", False), d.get("rating", 0)), reverse=True
+    )
+    return [profile_public(d) for d in docs]
+
+
+class ProTutorCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    native_accent: str | None = None
+    bio: str | None = ""
+    teaches: list[str] = []
+    specialties: list[str] = []
+    hourly_rate: float = 15
+    rating: float = 5.0
+    avatar_url: str | None = None
+    country: str | None = None
+    featured: bool = False
+    is_online: bool = True
+
+
+@router.post("/pro/tutors", status_code=201)
+async def pro_create_tutor(body: ProTutorCreate, admin: AdminUser):
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "external_user_id": f"pro-tutor-admin-{uuid.uuid4().hex[:8]}",
+        "role": "tutor",
+        "name": body.name,
+        "native_accent": body.native_accent,
+        "bio": body.bio or "",
+        "teaches": body.teaches,
+        "languages": body.teaches,
+        "specialties": body.specialties,
+        "hourly_rate": body.hourly_rate,
+        "rating": body.rating,
+        "reviews_count": 0,
+        "lessons_taught": 0,
+        "avatar_url": body.avatar_url,
+        "video_intro_url": None,
+        "country": body.country,
+        "featured": body.featured,
+        "is_online": body.is_online,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await pro_profiles_col.insert_one(doc)
+    return profile_public(doc)
+
+
+class ProTutorUpdate(BaseModel):
+    name: str | None = None
+    native_accent: str | None = None
+    bio: str | None = None
+    teaches: list[str] | None = None
+    specialties: list[str] | None = None
+    hourly_rate: float | None = None
+    rating: float | None = None
+    avatar_url: str | None = None
+    country: str | None = None
+    featured: bool | None = None
+    is_online: bool | None = None
+
+
+@router.put("/pro/tutors/{tutor_id}")
+async def pro_update_tutor(tutor_id: str, body: ProTutorUpdate, admin: AdminUser):
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "teaches" in updates:
+        updates["languages"] = updates["teaches"]
+    res = await pro_profiles_col.update_one(
+        {"_id": tutor_id, "role": "tutor"}, {"$set": updates}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Tutor not found")
+    doc = await pro_profiles_col.find_one({"_id": tutor_id})
+    return profile_public(doc)
+
+
+@router.delete("/pro/tutors/{tutor_id}")
+async def pro_delete_tutor(tutor_id: str, admin: AdminUser):
+    res = await pro_profiles_col.delete_one({"_id": tutor_id, "role": "tutor"})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Tutor not found")
+    return {"ok": True}
+
+
+@router.get("/pro/sessions")
+async def pro_list_sessions(admin: AdminUser):
+    docs = await pro_sessions_col.find({}).sort("created_at", -1).to_list(200)
+    return [session_public(d) for d in docs]
+
+
+@router.post("/pro/sessions/{session_id}/end")
+async def pro_force_end_session(session_id: str, admin: AdminUser):
+    res = await pro_sessions_col.update_one(
+        {"_id": session_id},
+        {"$set": {"status": "completed", "end_time": datetime.now(timezone.utc).isoformat()}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"ok": True, "status": "completed"}
+
+
+@router.get("/premium/stats")
+async def premium_stats(admin: AdminUser):
+    """Premium is the VIP-themed twin of the main app — controlled here by
+    managing VIP membership + premium-visible content."""
+    vip_users = await users_col.count_documents({"is_vip": True})
+    vip_weekly = await users_col.count_documents({"is_vip": True, "vip_tier": "weekly"})
+    vip_monthly = await users_col.count_documents({"is_vip": True, "vip_tier": "monthly"})
+    vip_lifetime = await users_col.count_documents(
+        {"is_vip": True, "vip_tier": "lifetime"}
+    )
+    return {
+        "vip_users": vip_users,
+        "vip_weekly": vip_weekly,
+        "vip_monthly": vip_monthly,
+        "vip_lifetime": vip_lifetime,
+    }
+
+
+@router.get("/premium/members")
+async def premium_members(admin: AdminUser):
+    docs = (
+        await users_col.find({"is_vip": True}, {"password_hash": 0})
+        .sort("created_at", -1)
+        .to_list(300)
+    )
+    return [admin_user_row(d) for d in docs]

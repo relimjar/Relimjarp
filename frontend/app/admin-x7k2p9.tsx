@@ -122,16 +122,33 @@ interface IntegrationFile {
   updated_at: string | null;
 }
 
-const TABS: { key: Tab; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: "Overview", icon: "grid" },
-  { key: "Users", icon: "people" },
-  { key: "Rooms", icon: "mic" },
-  { key: "Moments", icon: "planet" },
-  { key: "Market", icon: "storefront" },
-  { key: "Broadcast", icon: "megaphone" },
-  { key: "Integrations", icon: "extension-puzzle" },
-  { key: "Settings", icon: "settings" },
+type AppKey = "Main" | "Premium" | "Pro";
+
+const APP_TABS: Record<AppKey, { key: Tab; icon: keyof typeof Ionicons.glyphMap }[]> = {
+  Main: [
+    { key: "Overview", icon: "grid" },
+    { key: "Users", icon: "people" },
+    { key: "Rooms", icon: "mic" },
+    { key: "Moments", icon: "planet" },
+    { key: "Market", icon: "storefront" },
+    { key: "Broadcast", icon: "megaphone" },
+    { key: "Integrations", icon: "extension-puzzle" },
+    { key: "Settings", icon: "settings" },
+  ],
+  Premium: [{ key: "PremiumHome", icon: "diamond" }],
+  Pro: [
+    { key: "ProHome", icon: "grid" },
+    { key: "Tutors", icon: "school" },
+    { key: "Sessions", icon: "videocam" },
+  ],
+};
+
+const APPS: { key: AppKey; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+  { key: "Main", label: "Main App", icon: "phone-portrait", color: BRAND },
+  { key: "Premium", label: "Premium", icon: "diamond", color: GOLD },
+  { key: "Pro", label: "Pro", icon: "videocam", color: ORANGE },
 ];
+
 type Tab =
   | "Overview"
   | "Users"
@@ -140,7 +157,11 @@ type Tab =
   | "Market"
   | "Broadcast"
   | "Integrations"
-  | "Settings";
+  | "Settings"
+  | "PremiumHome"
+  | "ProHome"
+  | "Tutors"
+  | "Sessions";
 
 // ── Shared bits ──
 const Chip = ({ label, color }: { label: string; color: string }) => (
@@ -182,7 +203,13 @@ const SectionNote = ({ children }: { children: React.ReactNode }) => (
 
 export default function AdminPanel() {
   const { user, loading, login, logout } = useAuth();
+  const [app, setApp] = useState<AppKey>("Main");
   const [tab, setTab] = useState<Tab>("Overview");
+
+  const switchApp = useCallback((next: AppKey) => {
+    setApp(next);
+    setTab(APP_TABS[next][0].key);
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -312,21 +339,44 @@ export default function AdminPanel() {
         </LinearGradient>
         <View style={{ flex: 1 }}>
           <Text style={s.topTitle}>LinguaConnect</Text>
-          <Text style={s.topSub}>Admin Console · {user.email}</Text>
+          <Text style={s.topSub}>
+            {APPS.find((a) => a.key === app)?.label} · {user.email}
+          </Text>
         </View>
         <Pressable testID="admin-logout-btn" onPress={logout} style={s.logoutBtn}>
           <Ionicons name="log-out-outline" size={17} color={DANGER} />
         </Pressable>
       </View>
 
-      {/* Tab pills */}
+      {/* App switcher — one console controls Main / Premium / Pro */}
+      <View style={s.appSwitcher}>
+        {APPS.map((a) => {
+          const active = app === a.key;
+          return (
+            <Pressable
+              key={a.key}
+              testID={`admin-app-${a.key.toLowerCase()}`}
+              style={[
+                s.appBtn,
+                active && { backgroundColor: `${a.color}22`, borderColor: a.color },
+              ]}
+              onPress={() => switchApp(a.key)}
+            >
+              <Ionicons name={a.icon} size={15} color={active ? a.color : MUTED} />
+              <Text style={[s.appBtnText, active && { color: a.color }]}>{a.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Tab pills (per selected app) */}
       <View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.tabBar}
         >
-          {TABS.map((t) => {
+          {APP_TABS[app].map((t) => {
             const active = tab === t.key;
             return (
               <Pressable
@@ -347,6 +397,7 @@ export default function AdminPanel() {
         </ScrollView>
       </View>
 
+      {/* Main app */}
       {tab === "Overview" && <Overview />}
       {tab === "Users" && <Users />}
       {tab === "Rooms" && <Rooms />}
@@ -355,6 +406,12 @@ export default function AdminPanel() {
       {tab === "Broadcast" && <Broadcast />}
       {tab === "Integrations" && <Integrations />}
       {tab === "Settings" && <Settings />}
+      {/* Premium */}
+      {tab === "PremiumHome" && <PremiumHome />}
+      {/* Pro */}
+      {tab === "ProHome" && <ProHome />}
+      {tab === "Tutors" && <ProTutors />}
+      {tab === "Sessions" && <ProSessions />}
     </SafeAreaView>
   );
 }
@@ -1132,6 +1189,423 @@ function Settings() {
   );
 }
 
+// ── Pro sub-app: Overview ──
+interface ProAdminStats {
+  tutors: number;
+  online_tutors: number;
+  students: number;
+  total_sessions: number;
+  active_sessions: number;
+  completed_sessions: number;
+  minutes_taught: number;
+}
+
+function ProHome() {
+  const [stats, setStats] = useState<ProAdminStats | null>(null);
+  useEffect(() => {
+    api.get<ProAdminStats>("/admin/pro/stats").then(setStats).catch(() => {});
+  }, []);
+  if (!stats) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={ORANGE} />
+      </View>
+    );
+  }
+  const cards: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+    { label: "Tutors", value: stats.tutors, icon: "school", color: ORANGE },
+    { label: "Online now", value: stats.online_tutors, icon: "ellipse", color: OK },
+    { label: "Learners", value: stats.students, icon: "people", color: BRAND },
+    { label: "Sessions", value: stats.total_sessions, icon: "videocam", color: PURPLE },
+    { label: "Active calls", value: stats.active_sessions, icon: "radio", color: DANGER },
+    { label: "Completed", value: stats.completed_sessions, icon: "checkmark-done", color: OK },
+    { label: "Minutes taught", value: stats.minutes_taught, icon: "time", color: GOLD },
+  ];
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-pro-overview">
+      <LinearGradient
+        colors={["#FB923C", "#C05A46"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.hero}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={s.heroLabel}>PRO · LIVE TUTORING</Text>
+          <Text style={s.heroValue}>{stats.tutors}</Text>
+          <View style={s.heroOnlineRow}>
+            <View style={s.onlineDot} />
+            <Text style={s.heroOnline}>{stats.online_tutors} tutors online</Text>
+          </View>
+        </View>
+        <Ionicons name="videocam" size={56} color="rgba(255,255,255,0.25)" />
+      </LinearGradient>
+      <View style={s.grid}>
+        {cards.map((c) => (
+          <View key={c.label} style={s.statCard}>
+            <View style={[s.statIcon, { backgroundColor: `${c.color}22` }]}>
+              <Ionicons name={c.icon} size={16} color={c.color} />
+            </View>
+            <Text style={s.statValue}>{c.value}</Text>
+            <Text style={s.statLabel}>{c.label}</Text>
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+// ── Pro sub-app: Tutors ──
+interface ProTutorRow {
+  id: string;
+  name: string;
+  avatar_url?: string;
+  native_accent?: string;
+  specialties: string[];
+  teaches: string[];
+  rating: number;
+  is_online: boolean;
+  featured: boolean;
+  hourly_rate: number;
+  lessons_taught: number;
+}
+
+function ProTutors() {
+  const [tutors, setTutors] = useState<ProTutorRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    name: "",
+    native_accent: "",
+    teaches: "en",
+    specialties: "",
+    hourly_rate: "15",
+    avatar_url: "",
+  });
+
+  const load = useCallback(() => {
+    api
+      .get<ProTutorRow[]>("/admin/pro/tutors")
+      .then(setTutors)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => load(), [load]);
+
+  const patch = async (id: string, body: Record<string, unknown>) => {
+    try {
+      const updated = await api.put<ProTutorRow>(`/admin/pro/tutors/${id}`, body);
+      setTutors((prev) => prev.map((t) => (t.id === id ? updated : t)));
+    } catch {
+      // silent
+    }
+  };
+
+  const remove = (id: string) =>
+    confirmAction("Delete this tutor permanently?", async () => {
+      try {
+        await api.delete(`/admin/pro/tutors/${id}`);
+        setTutors((prev) => prev.filter((t) => t.id !== id));
+      } catch {
+        // silent
+      }
+    });
+
+  const create = async () => {
+    if (!form.name.trim()) return;
+    try {
+      const body = {
+        name: form.name.trim(),
+        native_accent: form.native_accent.trim() || null,
+        teaches: form.teaches.split(",").map((x) => x.trim()).filter(Boolean),
+        specialties: form.specialties.split(",").map((x) => x.trim()).filter(Boolean),
+        hourly_rate: parseFloat(form.hourly_rate) || 15,
+        avatar_url: form.avatar_url.trim() || null,
+      };
+      const created = await api.post<ProTutorRow>("/admin/pro/tutors", body);
+      setTutors((prev) => [created, ...prev]);
+      setForm({ name: "", native_accent: "", teaches: "en", specialties: "", hourly_rate: "15", avatar_url: "" });
+      setShowAdd(false);
+    } catch {
+      // silent
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={ORANGE} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-pro-tutors">
+      <Pressable
+        testID="admin-pro-add-tutor"
+        style={s.primaryBtn}
+        onPress={() => setShowAdd((v) => !v)}
+      >
+        <Text style={s.primaryBtnText}>
+          {showAdd ? "Close" : "+ Add tutor"}
+        </Text>
+      </Pressable>
+
+      {showAdd && (
+        <View style={s.panel}>
+          {[
+            ["name", "Name"],
+            ["native_accent", "Accent (e.g. British · RP)"],
+            ["teaches", "Teaches (codes, comma sep: en,es)"],
+            ["specialties", "Specialties (comma sep)"],
+            ["hourly_rate", "Minutes per lesson"],
+            ["avatar_url", "Avatar URL"],
+          ].map(([key, label]) => (
+            <View key={key} style={s.settingField}>
+              <Text style={s.settingLabel}>{label}</Text>
+              <TextInput
+                testID={`admin-pro-form-${key}`}
+                style={[s.numInput, { minWidth: 170 }]}
+                value={(form as Record<string, string>)[key]}
+                onChangeText={(v) => setForm((p) => ({ ...p, [key]: v }))}
+                placeholderTextColor={MUTED}
+                autoCapitalize="none"
+              />
+            </View>
+          ))}
+          <Pressable testID="admin-pro-create-tutor" style={s.primaryBtn} onPress={create}>
+            <Text style={s.primaryBtnText}>Create tutor</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {tutors.map((t) => (
+        <View key={t.id} style={s.panel} testID={`admin-pro-tutor-${t.id}`}>
+          <View style={s.rowHead}>
+            <Avatar name={t.name} url={t.avatar_url} size={44} />
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <Text style={s.rowTitle}>{t.name}</Text>
+                {t.featured && <Chip label="Featured" color={GOLD} />}
+                <Chip label={t.is_online ? "Online" : "Offline"} color={t.is_online ? OK : MUTED} />
+              </View>
+              <Text style={s.rowSub}>
+                {t.native_accent} · ⭐ {t.rating.toFixed(1)} · {t.lessons_taught} lessons
+              </Text>
+              <Text style={s.rowSub}>{(t.specialties || []).join(" · ")}</Text>
+            </View>
+          </View>
+          <View style={s.actionRow}>
+            <ActionBtn
+              testID={`admin-pro-toggle-online-${t.id}`}
+              label={t.is_online ? "Set offline" : "Set online"}
+              color={t.is_online ? MUTED : OK}
+              icon="ellipse"
+              onPress={() => patch(t.id, { is_online: !t.is_online })}
+            />
+            <ActionBtn
+              testID={`admin-pro-toggle-featured-${t.id}`}
+              label={t.featured ? "Unfeature" : "Feature"}
+              color={GOLD}
+              icon="star"
+              onPress={() => patch(t.id, { featured: !t.featured })}
+            />
+            <ActionBtn
+              label="+ Rating"
+              color={BRAND}
+              icon="trending-up"
+              onPress={() => patch(t.id, { rating: Math.min(5, Math.round((t.rating + 0.1) * 10) / 10) })}
+            />
+            <ActionBtn
+              testID={`admin-pro-delete-${t.id}`}
+              label="Delete"
+              color={DANGER}
+              icon="trash"
+              onPress={() => remove(t.id)}
+            />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+// ── Pro sub-app: Sessions ──
+interface ProSessionRow {
+  id: string;
+  status: string;
+  student?: { name?: string };
+  tutor?: { name?: string };
+  call_duration: number;
+  created_at?: string;
+}
+
+function ProSessions() {
+  const [sessions, setSessions] = useState<ProSessionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    api
+      .get<ProSessionRow[]>("/admin/pro/sessions")
+      .then(setSessions)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => load(), [load]);
+
+  const forceEnd = (id: string) =>
+    confirmAction("Force-end this session?", async () => {
+      try {
+        await api.post(`/admin/pro/sessions/${id}/end`);
+        load();
+      } catch {
+        // silent
+      }
+    });
+
+  if (loading) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={ORANGE} />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-pro-sessions">
+      <SectionNote>All lessons across the Pro app — newest first.</SectionNote>
+      {sessions.length === 0 && <Text style={s.rowSub}>No sessions yet.</Text>}
+      {sessions.map((se) => (
+        <View key={se.id} style={s.panel} testID={`admin-pro-session-${se.id}`}>
+          <View style={s.rowHead}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={s.rowTitle}>
+                  {se.student?.name || "Learner"} → {se.tutor?.name || "Tutor"}
+                </Text>
+                <Chip
+                  label={se.status}
+                  color={se.status === "active" ? DANGER : se.status === "completed" ? OK : MUTED}
+                />
+              </View>
+              <Text style={s.rowSub}>
+                {Math.round((se.call_duration || 0) / 60)} min ·{" "}
+                {(se.created_at || "").slice(0, 16).replace("T", " ")}
+              </Text>
+            </View>
+            {se.status === "active" && (
+              <ActionBtn
+                testID={`admin-pro-endsession-${se.id}`}
+                label="End"
+                color={DANGER}
+                icon="stop-circle"
+                onPress={() => forceEnd(se.id)}
+              />
+            )}
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+// ── Premium sub-app: VIP membership control ──
+interface PremiumStats {
+  vip_users: number;
+  vip_weekly: number;
+  vip_monthly: number;
+  vip_lifetime: number;
+}
+
+function PremiumHome() {
+  const [stats, setStats] = useState<PremiumStats | null>(null);
+  const [members, setMembers] = useState<AdminUserRow[]>([]);
+
+  const load = useCallback(() => {
+    api.get<PremiumStats>("/admin/premium/stats").then(setStats).catch(() => {});
+    api.get<AdminUserRow[]>("/admin/premium/members").then(setMembers).catch(() => {});
+  }, []);
+  useEffect(() => load(), [load]);
+
+  const revoke = (id: string) =>
+    confirmAction("Revoke Premium (VIP) for this member?", async () => {
+      try {
+        await api.put(`/admin/users/${id}/vip`, { is_vip: false });
+        setMembers((prev) => prev.filter((m) => m.id !== id));
+        api.get<PremiumStats>("/admin/premium/stats").then(setStats).catch(() => {});
+      } catch {
+        // silent
+      }
+    });
+
+  if (!stats) {
+    return (
+      <View style={s.center}>
+        <ActivityIndicator size="large" color={GOLD} />
+      </View>
+    );
+  }
+  const cards: { label: string; value: number; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
+    { label: "Members", value: stats.vip_users, icon: "diamond", color: GOLD },
+    { label: "Weekly", value: stats.vip_weekly, icon: "calendar", color: BRAND },
+    { label: "Monthly", value: stats.vip_monthly, icon: "calendar-clear", color: PURPLE },
+    { label: "Lifetime", value: stats.vip_lifetime, icon: "infinite", color: OK },
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={s.page} testID="admin-premium-overview">
+      <LinearGradient
+        colors={["#FBBF24", "#B45309"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={s.hero}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={s.heroLabel}>PREMIUM · VIP CLUB</Text>
+          <Text style={s.heroValue}>{stats.vip_users}</Text>
+          <Text style={s.heroOnline}>active members</Text>
+        </View>
+        <Ionicons name="diamond" size={52} color="rgba(255,255,255,0.3)" />
+      </LinearGradient>
+      <View style={s.grid}>
+        {cards.map((c) => (
+          <View key={c.label} style={s.statCard}>
+            <View style={[s.statIcon, { backgroundColor: `${c.color}22` }]}>
+              <Ionicons name={c.icon} size={16} color={c.color} />
+            </View>
+            <Text style={s.statValue}>{c.value}</Text>
+            <Text style={s.statLabel}>{c.label}</Text>
+          </View>
+        ))}
+      </View>
+      <SectionNote>
+        Premium shares the main app but with a VIP theme. Manage who has access
+        here (grant VIP from the Main · Users tab).
+      </SectionNote>
+      {members.map((m) => (
+        <View key={m.id} style={s.panel} testID={`admin-premium-member-${m.id}`}>
+          <View style={s.rowHead}>
+            <Avatar name={m.name} url={m.avatar_url} size={40} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.rowTitle}>{m.name}</Text>
+              <Text style={s.rowSub}>
+                {m.email} · {m.vip_tier || "lifetime"}
+              </Text>
+            </View>
+            <ActionBtn
+              testID={`admin-premium-revoke-${m.id}`}
+              label="Revoke"
+              color={DANGER}
+              icon="close-circle"
+              onPress={() => revoke(m.id)}
+            />
+          </View>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+
 // ── Styles ──
 const s = StyleSheet.create({
   container: {
@@ -1281,6 +1755,52 @@ const s = StyleSheet.create({
   },
   tabTextActive: {
     color: "#082F49",
+  },
+  // App switcher
+  appSwitcher: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+  },
+  appBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: CARD,
+    borderWidth: 1.5,
+    borderColor: BORDER,
+  },
+  appBtnText: {
+    color: MUTED,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  // Generic list rows (Pro/Premium)
+  rowHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowTitle: {
+    color: TEXT,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  rowSub: {
+    color: MUTED,
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  actionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 4,
   },
   // Layout
   page: {
