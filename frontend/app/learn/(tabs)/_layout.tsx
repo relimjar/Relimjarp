@@ -17,10 +17,10 @@ type TabDef = {
 
 const TABS: TabDef[] = [
   { name: "index", label: "Home", icon: "home-outline", iconActive: "home" },
-  { name: "lessons", label: "Lessons", icon: "play-box-outline", iconActive: "play-box" },
+  { name: "lessons", label: "Lessons", icon: "play-circle-outline", iconActive: "play-circle" },
   { name: "vocabulary", label: "Vocabulary", icon: "book-outline", iconActive: "book" },
-  { name: "tutors", label: "Tutors", icon: "emoticon-happy-outline", iconActive: "emoticon-happy" },
-  { name: "profile", label: "Profile", icon: "account-box-outline", iconActive: "account-box" },
+  { name: "tutors", label: "Tutors", icon: "emoticon-outline", iconActive: "emoticon" },
+  { name: "profile", label: "Profile", icon: "account-circle-outline", iconActive: "account-circle" },
 ];
 
 function VocabTabBar({ state, navigation }: any) {
@@ -62,7 +62,7 @@ function VocabTabBar({ state, navigation }: any) {
               >
                 <MaterialCommunityIcons
                   name={focused ? def.iconActive : def.icon}
-                  size={22}
+                  size={24}
                   color={iconColor}
                 />
               </View>
@@ -117,9 +117,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   iconPill: {
-    width: 44,
-    height: 28,
-    borderRadius: 14,
+    width: 48,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
