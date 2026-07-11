@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -57,7 +57,7 @@ export default function VocabLessons() {
       >
         <View style={s.searchRow}>
           <View style={s.searchPill}>
-            <Ionicons name="search" size={18} color="#7A7A85" />
+            <VIcon name="search" size={18} color="#7A7A85" />
             <TextInput
               value={q}
               onChangeText={setQ}
@@ -67,7 +67,7 @@ export default function VocabLessons() {
             />
           </View>
           <Pressable style={s.filterBtn} onPress={() => setFilterOpen(true)}>
-            <Ionicons name="options-outline" size={20} color="#FFFFFF" />
+            <VIcon name="options-outline" size={20} color="#FFFFFF" />
             {activeFilters > 0 && (
               <View style={s.filterBadge}>
                 <Text style={s.filterBadgeText}>{activeFilters}</Text>
@@ -92,16 +92,16 @@ export default function VocabLessons() {
                 <Text style={s.lessonDesc}>{l.description}</Text>
                 <View style={s.metaRow}>
                   <View style={s.metaItem}>
-                    <Ionicons name="time-outline" size={16} color="#0B0B0F" />
+                    <VIcon name="time-outline" size={16} color="#0B0B0F" />
                     <Text style={s.metaText}>{l.minutes} min</Text>
                   </View>
                   <View style={s.metaItem}>
-                    <Ionicons name="stats-chart" size={16} color="#0B0B0F" />
+                    <VIcon name="stats-chart" size={16} color="#0B0B0F" />
                     <Text style={s.metaText}>{l.level}</Text>
                   </View>
                   {l.completed && (
                     <View style={[s.metaItem, { marginLeft: "auto" }]}>
-                      <Ionicons name="checkmark-circle" size={18} color="#2E8B57" />
+                      <VIcon name="checkmark-circle" size={18} color="#2E8B57" />
                       <Text style={[s.metaText, { color: "#2E8B57" }]}>Done</Text>
                     </View>
                   )}
@@ -110,7 +110,7 @@ export default function VocabLessons() {
                   style={({ pressed }) => [s.startBtn, pressed && { opacity: 0.9 }]}
                   onPress={() => router.push({ pathname: "/learn/lesson/[id]", params: { id: l.id } })}
                 >
-                  <Ionicons name="play" size={16} color="#FFFFFF" />
+                  <VIcon name="play" size={16} color="#FFFFFF" />
                   <Text style={s.startText}>{l.completed ? "Practice again" : "Start lesson"}</Text>
                 </Pressable>
               </View>

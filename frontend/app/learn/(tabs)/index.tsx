@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -8,8 +8,8 @@ import { vocabApi, VocabChallenge, VocabContinue, VocabStats, VocabTopic } from 
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 import { LearnPalette, learnRadius } from "@/src/learn/theme";
 
-function iconForChallenge(name: string): keyof typeof Ionicons.glyphMap {
-  const v = (name || "reader-outline") as keyof typeof Ionicons.glyphMap;
+function iconForChallenge(name: string): string {
+  const v = (name || "reader-outline") as string;
   return v;
 }
 
@@ -70,17 +70,17 @@ export default function VocabHome() {
             <Text style={s.hello}>Hey there 👋</Text>
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 10 }}>
               <View style={s.miniPill}>
-                <Ionicons name="flame" size={14} color={colors.coral} />
+                <VIcon name="flame" size={14} color={colors.coral} />
                 <Text style={s.miniPillText}>{streak}d streak</Text>
               </View>
               <View style={s.miniPill}>
-                <Ionicons name="star" size={14} color="#EABA00" />
+                <VIcon name="star" size={14} color="#EABA00" />
                 <Text style={s.miniPillText}>Lv {level}</Text>
               </View>
             </View>
           </View>
           <Pressable onPress={toggle} style={s.themeBtn} hitSlop={8}>
-            <Ionicons name={mode === "dark" ? "sunny" : "moon"} size={18} color={colors.text} />
+            <VIcon name={mode === "dark" ? "sunny" : "moon"} size={18} color={colors.text} />
           </Pressable>
         </View>
 
@@ -104,7 +104,7 @@ export default function VocabHome() {
                   style={({ pressed }) => [s.continueBtn, pressed && { opacity: 0.9 }]}
                   onPress={() => router.push({ pathname: "/learn/lesson/[id]", params: { id: cont.id } })}
                 >
-                  <Ionicons name="play" size={16} color="#FFFFFF" />
+                  <VIcon name="play" size={16} color="#FFFFFF" />
                   <Text style={s.continueText}>Continue lesson</Text>
                 </Pressable>
               </View>
@@ -124,7 +124,7 @@ export default function VocabHome() {
                   style={[s.topicChip, { backgroundColor: t.color === "purple" ? colors.cardPurpleSoft : t.color === "lime" ? colors.cardLime : colors.cardMint }]}
                 >
                   <View style={s.topicIconWrap}>
-                    <Ionicons name={t.icon as any} size={22} color={colors.onLight} />
+                    <VIcon name={t.icon as any} size={22} color={colors.onLight} />
                   </View>
                   <View>
                     <Text style={s.topicName}>{t.name}</Text>
@@ -139,7 +139,7 @@ export default function VocabHome() {
               {challenges.map((c) => (
                 <Pressable key={c.id} style={s.challengeCard}>
                   <View style={s.challengeIconBox}>
-                    <Ionicons name={iconForChallenge(c.icon)} size={22} color="#FFFFFF" />
+                    <VIcon name={iconForChallenge(c.icon)} size={22} color="#FFFFFF" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.challengeTitle}>{c.title}</Text>

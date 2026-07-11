@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -51,7 +51,7 @@ export default function VocabVocabulary() {
         }}
       >
         <View style={s.searchPill}>
-          <Ionicons name="search" size={18} color="#7A7A85" />
+          <VIcon name="search" size={18} color="#7A7A85" />
           <TextInput
             value={q}
             onChangeText={setQ}
@@ -81,7 +81,7 @@ export default function VocabVocabulary() {
                   style={[s.smallChip, { backgroundColor: chipBg(t.color) }]}
                 >
                   <View style={s.smallChipIcon}>
-                    <Ionicons name={t.icon as any} size={22} color={colors.onLight} />
+                    <VIcon name={t.icon as any} size={22} color={colors.onLight} />
                   </View>
                   <View>
                     <Text style={s.smallChipText}>{t.name}</Text>
@@ -100,7 +100,7 @@ export default function VocabVocabulary() {
                   onPress={() => router.push({ pathname: "/learn/topic/[id]", params: { id: t.id } })}
                 >
                   <View style={s.tileIcon}>
-                    <Ionicons name={t.icon as any} size={22} color={colors.onLight} />
+                    <VIcon name={t.icon as any} size={22} color={colors.onLight} />
                   </View>
                   <View>
                     <Text style={s.tileTitle}>{t.name}</Text>

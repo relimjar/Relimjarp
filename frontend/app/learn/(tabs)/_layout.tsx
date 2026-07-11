@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -6,21 +6,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 
-type IonIcon = keyof typeof Ionicons.glyphMap;
+type MciIcon = keyof typeof MaterialCommunityIcons.glyphMap;
 
 type TabDef = {
   name: string;
   label: string;
-  icon: IonIcon;
-  iconActive: IonIcon;
+  icon: MciIcon;
+  iconActive: MciIcon;
 };
 
 const TABS: TabDef[] = [
   { name: "index", label: "Home", icon: "home-outline", iconActive: "home" },
-  { name: "lessons", label: "Lessons", icon: "play-circle-outline", iconActive: "play-circle" },
+  { name: "lessons", label: "Lessons", icon: "play-box-outline", iconActive: "play-box" },
   { name: "vocabulary", label: "Vocabulary", icon: "book-outline", iconActive: "book" },
-  { name: "tutors", label: "Tutors", icon: "happy-outline", iconActive: "happy" },
-  { name: "profile", label: "Profile", icon: "person-outline", iconActive: "person" },
+  { name: "tutors", label: "Tutors", icon: "emoticon-happy-outline", iconActive: "emoticon-happy" },
+  { name: "profile", label: "Profile", icon: "account-box-outline", iconActive: "account-box" },
 ];
 
 function VocabTabBar({ state, navigation }: any) {
@@ -60,7 +60,11 @@ function VocabTabBar({ state, navigation }: any) {
                   focused && { backgroundColor: colors.tabActivePill },
                 ]}
               >
-                <Ionicons name={focused ? def.iconActive : def.icon} size={20} color={iconColor} />
+                <MaterialCommunityIcons
+                  name={focused ? def.iconActive : def.icon}
+                  size={22}
+                  color={iconColor}
+                />
               </View>
               <Text
                 numberOfLines={1}

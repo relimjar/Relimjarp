@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -9,7 +9,7 @@ import { vocabApi, VocabBooking, VocabStats } from "@/src/learn/api";
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 import { LearnPalette, learnRadius } from "@/src/learn/theme";
 
-type IonIcon = keyof typeof Ionicons.glyphMap;
+type IonIcon = string;
 type Stat = { label: string; value: string; icon: IonIcon };
 
 export default function VocabProfile() {
@@ -74,7 +74,7 @@ export default function VocabProfile() {
             <Text style={s.email}>{user?.email || ""}</Text>
           </View>
           <Pressable style={s.settingsBtn} onPress={toggle} hitSlop={8}>
-            <Ionicons name={mode === "dark" ? "sunny" : "moon"} size={20} color={colors.text} />
+            <VIcon name={mode === "dark" ? "sunny" : "moon"} size={20} color={colors.text} />
           </Pressable>
         </View>
 
@@ -94,7 +94,7 @@ export default function VocabProfile() {
           {statCards.map((st) => (
             <View key={st.label} style={s.statCard}>
               <View style={s.statIconWrap}>
-                <Ionicons name={st.icon} size={20} color="#0B0B0F" />
+                <VIcon name={st.icon} size={20} color="#0B0B0F" />
               </View>
               <Text style={s.statValue}>{st.value}</Text>
               <Text style={s.statLabel}>{st.label}</Text>
@@ -129,7 +129,7 @@ export default function VocabProfile() {
                   style={s.cancelBtn}
                   hitSlop={6}
                 >
-                  <Ionicons name="close" size={16} color={colors.text} />
+                  <VIcon name="close" size={16} color={colors.text} />
                 </Pressable>
               </View>
             ))
@@ -149,9 +149,9 @@ export default function VocabProfile() {
                 onPress={() => router.push({ pathname: "/learn/tutor/[id]", params: { id: b.target_id } })}
                 style={s.settingsRow}
               >
-                <Ionicons name="bookmark" size={18} color={colors.cardPurple} />
+                <VIcon name="bookmark" size={18} color={colors.cardPurple} />
                 <Text style={s.settingsLabel} numberOfLines={1}>Tutor {String(b.target_id).slice(0, 8)}</Text>
-                <Ionicons name="chevron-forward" size={18} color={colors.textDim} style={{ marginLeft: "auto" }} />
+                <VIcon name="chevron-forward" size={18} color={colors.textDim} style={{ marginLeft: "auto" }} />
               </Pressable>
             ))
           )}
@@ -160,7 +160,7 @@ export default function VocabProfile() {
         <Text style={s.section}>Appearance</Text>
         <View style={s.settingsList}>
           <Pressable style={s.settingsRow} onPress={toggle}>
-            <Ionicons name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.text} />
+            <VIcon name={mode === "dark" ? "moon" : "sunny"} size={20} color={colors.text} />
             <Text style={s.settingsLabel}>Theme</Text>
             <View style={s.modePillWrap}>
               <View style={[s.modePill, mode === "light" && s.modePillActive]}>
@@ -182,9 +182,9 @@ export default function VocabProfile() {
             { icon: "help-circle-outline", label: "Help & support" },
           ].map((row) => (
             <Pressable key={row.label} style={s.settingsRow}>
-              <Ionicons name={row.icon as any} size={20} color={colors.text} />
+              <VIcon name={row.icon as any} size={20} color={colors.text} />
               <Text style={s.settingsLabel}>{row.label}</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.textDim} style={{ marginLeft: "auto" }} />
+              <VIcon name="chevron-forward" size={18} color={colors.textDim} style={{ marginLeft: "auto" }} />
             </Pressable>
           ))}
         </View>

@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -106,7 +106,7 @@ export default function TutorDetail() {
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
         <Text style={{ color: colors.textDim, textAlign: "center", marginBottom: 12 }}>Tutor not found.</Text>
         <Pressable onPress={() => router.back()} style={s.roundBtn}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <VIcon name="arrow-back" size={20} color={colors.text} />
         </Pressable>
       </View>
     );
@@ -126,14 +126,14 @@ export default function TutorDetail() {
       >
         <View style={s.topBar}>
           <Pressable onPress={() => router.back()} style={s.roundBtn}>
-            <Ionicons name="arrow-back" size={20} color={colors.text} />
+            <VIcon name="arrow-back" size={20} color={colors.text} />
           </Pressable>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Pressable style={s.roundBtn}>
-              <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.text} />
+              <VIcon name="chatbubble-ellipses-outline" size={20} color={colors.text} />
             </Pressable>
             <Pressable style={s.roundBtn} onPress={toggleBookmark}>
-              <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={20} color={colors.text} />
+              <VIcon name={bookmarked ? "bookmark" : "bookmark-outline"} size={20} color={colors.text} />
             </Pressable>
           </View>
         </View>
@@ -158,11 +158,11 @@ export default function TutorDetail() {
 
         <View style={{ flexDirection: "row", gap: 20, marginBottom: 20 }}>
           <View style={s.iconMeta}>
-            <Ionicons name="school-outline" size={18} color={colors.text} />
+            <VIcon name="school-outline" size={18} color={colors.text} />
             <Text style={s.iconMetaText}>{tutor.lessons_taught ?? 256} lessons</Text>
           </View>
           <View style={s.iconMeta}>
-            <Ionicons name="people-outline" size={18} color={colors.text} />
+            <VIcon name="people-outline" size={18} color={colors.text} />
             <Text style={s.iconMetaText}>{tutor.students_count ?? 32} students</Text>
           </View>
         </View>
@@ -174,7 +174,7 @@ export default function TutorDetail() {
 
         {confirmedBooking && (
           <View style={s.bookingConfirmed}>
-            <Ionicons name="checkmark-circle" size={20} color="#0B0B0F" />
+            <VIcon name="checkmark-circle" size={20} color="#0B0B0F" />
             <View style={{ flex: 1 }}>
               <Text style={{ color: "#0B0B0F", fontSize: 13, fontWeight: "800" }}>Booking confirmed</Text>
               <Text style={{ color: "#0B0B0F", fontSize: 12, marginTop: 2 }}>
@@ -185,13 +185,13 @@ export default function TutorDetail() {
         )}
 
         <Pressable style={({ pressed }) => [s.bookBtn, pressed && { opacity: 0.9 }]} onPress={() => setBookingOpen(true)}>
-          <Ionicons name="calendar-outline" size={18} color={colors.onLight} />
+          <VIcon name="calendar-outline" size={18} color={colors.onLight} />
           <Text style={s.bookText}>Book lesson</Text>
         </Pressable>
 
         <View style={s.reviewsCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <Ionicons name="star" size={16} color="#0B0B0F" />
+            <VIcon name="star" size={16} color="#0B0B0F" />
             <Text style={s.reviewsHeader}>{rating} · {reviewsCount} reviews</Text>
           </View>
           {FALLBACK_REVIEWS.map((r) => (

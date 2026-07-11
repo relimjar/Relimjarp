@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -106,7 +106,7 @@ export default function VocabTutors() {
         <Text style={s.title}>Tutors for private online lessons</Text>
 
         <Pressable style={s.filtersBtn} onPress={() => setFiltersOpen(true)}>
-          <Ionicons name="options-outline" size={18} color={colors.onLight} />
+          <VIcon name="options-outline" size={18} color={colors.onLight} />
           <Text style={s.filtersText}>Filters</Text>
           {activeFilters > 0 && (
             <View style={s.filterBadge}>
@@ -149,23 +149,23 @@ export default function VocabTutors() {
                       </Text>
                     </View>
                     <Pressable onPress={() => toggleBookmark(t.id)} hitSlop={8}>
-                      <Ionicons name={bookmarked ? "bookmark" : "bookmark-outline"} size={22} color="#0B0B0F" />
+                      <VIcon name={bookmarked ? "bookmark" : "bookmark-outline"} size={22} color="#0B0B0F" />
                     </Pressable>
                   </View>
 
                   <View style={s.metaRow}>
-                    <Ionicons name="star" size={16} color="#0B0B0F" />
+                    <VIcon name="star" size={16} color="#0B0B0F" />
                     <Text style={s.metaText}>
                       {(t.rating ?? 5).toFixed(0)} · {t.reviews_count ?? 24} reviews
                     </Text>
                   </View>
                   <View style={s.metaRow}>
                     <View style={s.metaItem}>
-                      <Ionicons name="school-outline" size={16} color="#0B0B0F" />
+                      <VIcon name="school-outline" size={16} color="#0B0B0F" />
                       <Text style={s.metaText}>{t.lessons_taught ?? 256} lessons</Text>
                     </View>
                     <View style={s.metaItem}>
-                      <Ionicons name="people-outline" size={16} color="#0B0B0F" />
+                      <VIcon name="people-outline" size={16} color="#0B0B0F" />
                       <Text style={s.metaText}>{t.students_count ?? 32} students</Text>
                     </View>
                   </View>
@@ -175,11 +175,11 @@ export default function VocabTutors() {
                       style={({ pressed }) => [s.bookBtn, pressed && { opacity: 0.9 }]}
                       onPress={() => router.push({ pathname: "/learn/tutor/[id]", params: { id: t.id } })}
                     >
-                      <Ionicons name="calendar-outline" size={16} color="#FFFFFF" />
+                      <VIcon name="calendar-outline" size={16} color="#FFFFFF" />
                       <Text style={s.bookText}>Book lesson</Text>
                     </Pressable>
                     <Pressable style={s.chatBtn} onPress={() => router.push({ pathname: "/learn/tutor/[id]", params: { id: t.id } })}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.onLight} />
+                      <VIcon name="chatbubble-ellipses-outline" size={20} color={colors.onLight} />
                     </Pressable>
                   </View>
                 </View>

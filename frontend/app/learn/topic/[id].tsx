@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -89,7 +89,7 @@ export default function TopicDetail() {
       {/* Header */}
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={s.roundBtn}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
+          <VIcon name="arrow-back" size={20} color={colors.text} />
         </Pressable>
         <Text style={s.headerTitle} numberOfLines={1}>{topic.name}</Text>
         <View style={{ width: 44 }} />
@@ -98,7 +98,7 @@ export default function TopicDetail() {
       <View style={{ paddingHorizontal: 18 }}>
         <View style={s.topicHero}>
           <View style={s.heroIconWrap}>
-            <Ionicons name={topic.icon as any} size={26} color={colors.onLight} />
+            <VIcon name={topic.icon as any} size={26} color={colors.onLight} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.heroSub}>{topic.subtitle}</Text>
@@ -114,14 +114,14 @@ export default function TopicDetail() {
             onPress={() => setMode("flashcards")}
             style={[s.modeBtn, mode === "flashcards" && s.modeBtnActive]}
           >
-            <Ionicons name="albums-outline" size={16} color={mode === "flashcards" ? "#0B0B0F" : colors.text} />
+            <VIcon name="albums-outline" size={16} color={mode === "flashcards" ? "#0B0B0F" : colors.text} />
             <Text style={[s.modeText, mode === "flashcards" && s.modeTextActive]}>Flashcards</Text>
           </Pressable>
           <Pressable
             onPress={() => setMode("list")}
             style={[s.modeBtn, mode === "list" && s.modeBtnActive]}
           >
-            <Ionicons name="list-outline" size={16} color={mode === "list" ? "#0B0B0F" : colors.text} />
+            <VIcon name="list-outline" size={16} color={mode === "list" ? "#0B0B0F" : colors.text} />
             <Text style={[s.modeText, mode === "list" && s.modeTextActive]}>All words</Text>
           </Pressable>
         </View>
@@ -145,18 +145,18 @@ export default function TopicDetail() {
               </Pressable>
               <View style={s.actionRow}>
                 <Pressable style={[s.actionBtn, { backgroundColor: colors.cardCoral }]} onPress={() => mark("learning")}>
-                  <Ionicons name="refresh" size={16} color="#FFFFFF" />
+                  <VIcon name="refresh" size={16} color="#FFFFFF" />
                   <Text style={s.actionText}>Practice again</Text>
                 </Pressable>
                 <Pressable style={[s.actionBtn, { backgroundColor: colors.cardMintDeep }]} onPress={() => mark("known")}>
-                  <Ionicons name="checkmark" size={16} color="#0B0B0F" />
+                  <VIcon name="checkmark" size={16} color="#0B0B0F" />
                   <Text style={[s.actionText, { color: "#0B0B0F" }]}>Got it</Text>
                 </Pressable>
               </View>
             </>
           ) : (
             <View style={{ paddingVertical: 40, alignItems: "center" }}>
-              <Ionicons name="trophy-outline" size={48} color={colors.cardPurple} />
+              <VIcon name="trophy-outline" size={48} color={colors.cardPurple} />
               <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800", marginTop: 12 }}>All done!</Text>
               <Text style={{ color: colors.textDim, marginTop: 4 }}>Come back tomorrow to review.</Text>
             </View>

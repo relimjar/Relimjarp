@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { VIcon } from "@/src/learn/Icon";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -82,7 +82,7 @@ export default function LessonPlayer() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={s.roundBtn}>
-          <Ionicons name="close" size={22} color={colors.text} />
+          <VIcon name="close" size={22} color={colors.text} />
         </Pressable>
         <View style={s.progressWrap}>
           <View style={[s.progressFill, { width: `${progressPct}%` }]} />
@@ -128,8 +128,8 @@ export default function LessonPlayer() {
                       s.quizOptionText,
                       (isCorrect || isWrongSel) && { color: "#0B0B0F" },
                     ]}>{opt}</Text>
-                    {isCorrect && <Ionicons name="checkmark-circle" size={20} color="#0B0B0F" />}
-                    {isWrongSel && <Ionicons name="close-circle" size={20} color="#0B0B0F" />}
+                    {isCorrect && <VIcon name="checkmark-circle" size={20} color="#0B0B0F" />}
+                    {isWrongSel && <VIcon name="close-circle" size={20} color="#0B0B0F" />}
                   </Pressable>
                 );
               })}
@@ -139,7 +139,7 @@ export default function LessonPlayer() {
 
         {step?.kind === "done" && (
           <View style={s.doneCard}>
-            <Ionicons name="trophy" size={48} color={"#EABA00"} />
+            <VIcon name="trophy" size={48} color={"#EABA00"} />
             <Text style={s.doneTitle}>Lesson complete!</Text>
             <Text style={s.doneMsg}>You got {correct} correct.</Text>
             <Text style={s.doneXp}>+{xpEarned ?? lesson.xp_reward} XP</Text>
@@ -158,7 +158,7 @@ export default function LessonPlayer() {
             onPress={onNext}
           >
             <Text style={s.nextText}>{step?.kind === "quiz" ? "Continue" : "Next"}</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <VIcon name="arrow-forward" size={18} color="#FFFFFF" />
           </Pressable>
         </View>
       )}
