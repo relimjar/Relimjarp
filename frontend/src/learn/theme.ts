@@ -1,30 +1,36 @@
-// Learn Module Design Tokens
-// Dark palette + vibrant neon accents inspired by the reference UI.
-// Kept in its own file so the whole Learn stack shares one visual system
-// without polluting the app-wide light/dark themes.
+// Learn / Vocab sub-app design tokens — matches uploaded reference designs
+// Dark near-black background with pastel accents (purple, mint, lime, coral).
 
 export const learnColors = {
+  // Base
   bg: "#0B0B0F",
   surface: "#121218",
   surfaceRaised: "#1A1A21",
-  surfaceHigh: "#25252E",
   border: "#2A2A34",
-  onSurface: "#FFFFFF",
-  onSurfaceSecondary: "#A0A0AB",
-  onSurfaceTertiary: "#6B6B75",
-  // Accent tiles / cards
-  yellow: "#EAFF61",
-  onYellow: "#0B0B0F",
-  purple: "#8A5EF7",
-  onPurple: "#FFFFFF",
-  green: "#3BE39B",
-  onGreen: "#0B0B0F",
-  orange: "#FF5C1F",
-  onOrange: "#FFFFFF",
-  // Onboarding backgrounds
-  onboardingLilac: "#DABFFF",
-  onboardingYellow: "#EAFF61",
-  onboardingOrange: "#FF6D33",
+  // Text
+  text: "#FFFFFF",
+  textDim: "#9A9AA5",
+  textFaint: "#6B6B75",
+  onLight: "#0B0B0F",
+  // Card / chip surfaces
+  cardLight: "#F2F2F4",     // white lesson cards
+  cardMint: "#C8E4B4",      // tutor & chip mint
+  cardMintDeep: "#B7D8A2",
+  cardLime: "#E8F569",      // vocabulary topic tiles
+  cardCoral: "#F0715C",     // challenge card
+  cardPurple: "#B7A0F5",    // in-progress + book lesson button
+  cardPurpleSoft: "#D8CBFF",
+  // Accents
+  purple: "#A78BFA",
+  purpleDark: "#7C5CE0",
+  green: "#8FCB6F",
+  lime: "#D6E85E",
+  coral: "#F0715C",
+  // Tab bar
+  tabBg: "#0B0B0F",
+  tabActivePill: "#B7A0F5",
+  tabActiveText: "#0B0B0F",
+  tabInactive: "#E4E4EA",
 } as const;
 
 export const learnRadius = {
@@ -34,3 +40,12 @@ export const learnRadius = {
   lg: 28,
   xl: 36,
 } as const;
+
+export const learnFont = {
+  h1: 32,
+  h2: 26,
+  h3: 20,
+  body: 15,
+  small: 13,
+  tiny: 11,
+};

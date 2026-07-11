@@ -54,9 +54,9 @@ const SHORTCUTS: Shortcut[] = [
   },
   {
     key: "learn",
-    label: "Learn",
-    icon: "school",
-    color: "#F59E0B",
+    label: "Vocab",
+    icon: "book",
+    color: "#C6B2FF",
     route: "/learn",
   },
   { key: "courses", label: "All Courses", icon: "book", color: "#3B82F6" },
