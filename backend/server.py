@@ -30,6 +30,7 @@ from routes.rooms import router as rooms_router  # noqa: E402
 from routes.pro import router as pro_router, seed_pro_tutors  # noqa: E402
 from routes.lessons import router as lessons_router  # noqa: E402
 from routes.users import router as users_router  # noqa: E402
+from routes.vocab import router as vocab_router, seed_vocab_content  # noqa: E402
 from ws_manager import manager  # noqa: E402
 
 logging.basicConfig(
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI):
     await seed_admin()
     await backfill_usernames()
     await seed_pro_tutors()
+    await seed_vocab_content()
     yield
     client.close()
 
@@ -226,6 +228,7 @@ for router in (
     learn_router,
     pro_router,
     lessons_router,
+    vocab_router,
 ):
     app.include_router(router, prefix="/api")
 

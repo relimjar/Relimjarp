@@ -2180,3 +2180,40 @@ test_plan:
 agent_communication:
     - agent: "testing"
       message: "✅ SMOKE TEST COMPLETED SUCCESSFULLY (4/4 verification points passed, 1 issue found and resolved). INITIAL ISSUE: Demo users were not seeded in database, causing login to fail with 'Incorrect email or password'. RESOLUTION: Ran /app/backend/seed.py which created 9 demo users including mei@demo.com. FINAL TEST RESULTS: (1) ✅ App boots successfully - welcome screen renders with all expected UI elements (branding, tagline, buttons, links). (2) ✅ Login screen accessible - 'I already have an account' link navigates to login form with email/password fields and validation. (3) ✅ Login successful - mei@demo.com / Demo1234! authenticates correctly, API call to /api/auth/login returns JWT token, user navigated to main app. (4) ✅ Main app loaded - all 5 tabs visible (Chats, Connect, Moments, Voice, Me), bottom tab bar properly positioned, daily check-in modal appeared (expected first-login behavior). NO CRITICAL ISSUES REMAINING. App is fully functional end-to-end. Smoke test passed."
+
+
+## Round 22 — Vocab Sub-App Backend Testing
+user_problem_statement: Test the new **Vocab sub-app** backend endpoints at `/api/vocab/*`. Auth uses JWT via existing `/api/auth/login`. Test all 17 endpoints including topics, words, lessons, progress tracking, bookmarks, bookings, and challenges. Verify auth enforcement (401 without token) and 404 for non-existent resources.
+
+backend:
+  - task: "Vocab sub-app API — topics, words, lessons, progress, bookmarks, bookings, challenges"
+    implemented: true
+    working: true
+    file: "backend/routes/vocab.py, backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New router /api/vocab with comprehensive endpoints: GET /vocab/topics (10 topics with word counts), GET /vocab/topics/{id} (single topic), GET /vocab/topics/{id}/words (words with per-user status), GET /vocab/lessons (with optional topic_id/level filters), GET /vocab/lessons/{id} (lesson with steps array including vocab/quiz/done kinds), POST /vocab/progress/word (update word status new/learning/known), POST /vocab/lessons/{id}/complete (awards XP once, idempotent), GET /vocab/me/stats (words_learned, lessons_completed, xp, level, streak), GET /vocab/me/continue (recommended lesson), POST /vocab/bookmarks/toggle (tutor/word/lesson), GET /vocab/bookmarks/status/{type}/{id}, GET /vocab/me/bookmarks (grouped by type), POST /vocab/bookings (with tutor from /api/pro/tutors), GET /vocab/me/bookings (enriched with tutor_name), DELETE /vocab/bookings/{id}, GET /vocab/challenges (with computed per-user progress). Content seeded on startup (idempotent). Test creds: mei@demo.com / Demo1234!"
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE VOCAB SUB-APP TESTING COMPLETED (19/19 tests passed, 0 failures). Tested all /api/vocab/* endpoints with mei@demo.com. PASSED TESTS: (1) GET /api/vocab/topics returns 10 topics with all required fields (id, name, subtitle, icon, color, word_count, words_learned) ✅ (2) GET /api/vocab/topics/medicine returns single medicine topic with correct data ✅ (3) GET /api/vocab/topics/medicine/words returns 8 words with all required fields (id, term, translation, example, topic_id, status), default status='new' ✅ (4) GET /api/vocab/lessons returns 6 lessons with all required fields (id, title, description, topic_id, level, minutes, xp_reward, completed) ✅ (5) GET /api/vocab/lessons?level=Advanced filters correctly, returns 2 Advanced lessons ✅ (6) GET /api/vocab/lessons/pharmacy-basics returns lesson with steps array (7 steps total: 6 vocab + 1 quiz + 1 done), exactly 1 quiz step and 1 done step as required, progress object with status/current_step/xp_awarded ✅ (7) POST /api/vocab/progress/word with word_id and status='known' returns {ok:true, stats:{...}}, stats.words_learned=1 after update ✅ (8) POST /api/vocab/lessons/pharmacy-basics/complete with step_count=7, correct_count=1 returns xp_awarded=20 on first call, second call returns xp_awarded=0 (idempotent XP) ✅ (9) GET /api/vocab/me/stats after tests 7&8 shows words_learned=1, lessons_completed=1, xp=22, level=1, streak=1 ✅ (10) GET /api/vocab/me/continue returns recommended lesson with all required fields (id, title, topic_id, level, minutes, progress, tag='Recommended') ✅ (11) POST /api/vocab/bookmarks/toggle with target_type='tutor', target_id='test-tutor-123' returns {bookmarked:true} on first call, {bookmarked:false} on second call ✅ (12) GET /api/vocab/bookmarks/status/tutor/test-tutor-123 returns {bookmarked:false} matching current state ✅ (13) GET /api/vocab/me/bookmarks returns grouped object {tutors:[], words:[], lessons:[]} ✅ (14) POST /api/vocab/bookings with tutor_id from GET /api/pro/tutors (Sofía Martínez), slot_iso='2026-08-20T14:00:00Z', duration_min=60 returns booking with _id ✅ (15) GET /api/vocab/me/bookings returns list with created booking, enriched with tutor_name='Sofía Martínez' ✅ (16) DELETE /api/vocab/bookings/{id} returns {ok:true}, second delete returns 404 ✅ (17) GET /api/vocab/challenges returns 3 challenges with all required fields (id, title, days_left, icon, goal_type, target, current, progress, completed), words_learned challenge shows current=1 after test 7 ✅ (18) Auth enforcement: all endpoints (/vocab/topics, /vocab/lessons, /vocab/me/stats, /vocab/challenges) correctly return 401 without token ✅ (19) 404 handling: non-existent topic and lesson correctly return 404 ✅. NO CRITICAL ISSUES FOUND. All endpoints working perfectly with correct validation, data types, error handling, authentication, and idempotent XP awards. Lesson completion flow works end-to-end (XP awarded once, stats updated, streak tracked). Bookmark toggle works correctly. Booking creation/deletion with tutor enrichment works. Challenges reflect real-time user progress. Ready for main agent to summarize and finish."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 22
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Vocab sub-app backend endpoints"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "✅ VOCAB SUB-APP BACKEND TESTING COMPLETED SUCCESSFULLY (19/19 tests passed, 0 failures). Comprehensive testing of all /api/vocab/* endpoints with mei@demo.com. ALL CRITICAL FUNCTIONALITY WORKING: (1) Topics list returns 10 topics with word counts ✅ (2) Single topic endpoint works ✅ (3) Topic words return with per-user status (default 'new') ✅ (4) Lessons list with all fields ✅ (5) Level filtering works (Advanced returns 2 lessons) ✅ (6) Lesson detail with steps array (6 vocab + 1 quiz + 1 done) and progress object ✅ (7) Word progress update sets status='known', returns updated stats with words_learned=1 ✅ (8) Lesson completion awards XP=20 on first call, XP=0 on second call (idempotent) ✅ (9) Stats endpoint shows words_learned=1, lessons_completed=1, xp=22, level=1, streak=1 after actions ✅ (10) Continue endpoint returns recommended lesson ✅ (11) Bookmark toggle works (true→false) ✅ (12) Bookmark status matches current state ✅ (13) Bookmarks list grouped by type ✅ (14) Booking creation with tutor from /api/pro/tutors works, returns _id ✅ (15) Bookings list enriched with tutor_name ✅ (16) Booking deletion works, second delete returns 404 ✅ (17) Challenges return with computed progress (words_learned challenge shows current=1) ✅ (18) Auth enforcement working (401 without token) ✅ (19) 404 for non-existent resources ✅. NO CRITICAL ISSUES FOUND. All endpoints working perfectly with correct validation, data types, error handling, and authentication. Vocab sub-app backend is production-ready. Ready for main agent to summarize and finish."
