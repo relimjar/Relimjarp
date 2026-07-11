@@ -16,11 +16,11 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
-  { name: "index", label: "Home", icon: "home-outline", iconActive: "home" },
-  { name: "lessons", label: "Lessons", icon: "play-circle-outline", iconActive: "play-circle" },
-  { name: "vocabulary", label: "Vocabulary", icon: "book-outline", iconActive: "book" },
-  { name: "tutors", label: "Tutors", icon: "emoticon-outline", iconActive: "emoticon" },
-  { name: "profile", label: "Profile", icon: "account-circle-outline", iconActive: "account-circle" },
+  { name: "index", label: "Home", icon: "home-outline", iconActive: "home-outline" },
+  { name: "lessons", label: "Lessons", icon: "play-circle-outline", iconActive: "play-circle-outline" },
+  { name: "vocabulary", label: "Vocabulary", icon: "book-outline", iconActive: "book-outline" },
+  { name: "tutors", label: "Tutors", icon: "emoticon-outline", iconActive: "emoticon-outline" },
+  { name: "profile", label: "Profile", icon: "account-circle-outline", iconActive: "account-circle-outline" },
 ];
 
 function VocabTabBar({ state, navigation }: any) {
@@ -62,7 +62,7 @@ function VocabTabBar({ state, navigation }: any) {
               >
                 <MaterialCommunityIcons
                   name={focused ? def.iconActive : def.icon}
-                  size={24}
+                  size={26}
                   color={iconColor}
                 />
               </View>
@@ -117,9 +117,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   iconPill: {
-    width: 48,
-    height: 30,
-    borderRadius: 15,
+    width: 46,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
