@@ -49,160 +49,48 @@ def _today_key() -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Seed content
+# Seed content (source of truth lives in vocab_content.py)
 # --------------------------------------------------------------------------- #
-TOPICS_SEED: list[dict[str, Any]] = [
-    {"id": "medicine", "name": "Medicine", "subtitle": "For healthcare providers", "icon": "medical-outline", "color": "lime"},
-    {"id": "virology", "name": "Virology", "subtitle": "Viruses & immunology", "icon": "nutrition-outline", "color": "mint"},
-    {"id": "pharmacy", "name": "Pharmacy", "subtitle": "Medicines & prescriptions", "icon": "medkit-outline", "color": "purple"},
-    {"id": "genetics", "name": "Genetics", "subtitle": "DNA & heredity", "icon": "git-branch-outline", "color": "mint"},
-    {"id": "anatomy", "name": "Anatomy", "subtitle": "Body systems", "icon": "body-outline", "color": "purple"},
-    {"id": "education", "name": "Education", "subtitle": "For education professionals", "icon": "school-outline", "color": "lime"},
-    {"id": "business", "name": "Business", "subtitle": "For career development", "icon": "briefcase-outline", "color": "lime"},
-    {"id": "science", "name": "Science", "subtitle": "For university students", "icon": "flask-outline", "color": "lime"},
-    {"id": "tech", "name": "Tech", "subtitle": "For software engineers", "icon": "code-slash-outline", "color": "purple"},
-    {"id": "travel", "name": "Travel", "subtitle": "For nomads & tourists", "icon": "airplane-outline", "color": "mint"},
-]
-
-# Word bank keyed by topic id.  Each word carries a definition + a translation
-# (kept generic English → simple gloss so the UI works out of the box).
-WORDS_SEED: dict[str, list[dict[str, str]]] = {
-    "medicine": [
-        {"term": "Diagnosis", "translation": "identifying an illness", "example": "The doctor confirmed the diagnosis after several tests."},
-        {"term": "Prognosis", "translation": "likely course of an illness", "example": "The prognosis is good with early treatment."},
-        {"term": "Symptom", "translation": "physical or mental feature of illness", "example": "Fever is a common symptom of infection."},
-        {"term": "Chronic", "translation": "long-lasting", "example": "She suffers from chronic back pain."},
-        {"term": "Acute", "translation": "sudden and severe", "example": "He had an acute allergic reaction."},
-        {"term": "Prescribe", "translation": "order medicine or treatment", "example": "The doctor prescribed antibiotics."},
-        {"term": "Referral", "translation": "sending a patient to a specialist", "example": "I need a referral to see a cardiologist."},
-        {"term": "Consent", "translation": "permission for treatment", "example": "The patient signed the consent form."},
-    ],
-    "virology": [
-        {"term": "Pathogen", "translation": "disease-causing agent", "example": "Viruses are a common type of pathogen."},
-        {"term": "Antibody", "translation": "immune protein", "example": "Antibodies help fight infection."},
-        {"term": "Vaccine", "translation": "trains immunity", "example": "The vaccine reduces severe disease."},
-        {"term": "Contagious", "translation": "easily spread", "example": "Measles is highly contagious."},
-        {"term": "Quarantine", "translation": "isolation to prevent spread", "example": "He was placed in quarantine for 10 days."},
-        {"term": "Outbreak", "translation": "sudden appearance of a disease", "example": "There is a flu outbreak at the school."},
-    ],
-    "pharmacy": [
-        {"term": "Dosage", "translation": "amount of medicine", "example": "The dosage is one tablet twice a day."},
-        {"term": "Side effect", "translation": "unwanted effect", "example": "Drowsiness is a common side effect."},
-        {"term": "Refill", "translation": "renew a prescription", "example": "I need a refill for my medication."},
-        {"term": "Over the counter", "translation": "no prescription needed", "example": "Ibuprofen is over the counter."},
-        {"term": "Generic", "translation": "non-brand version", "example": "The generic works the same as the brand."},
-    ],
-    "genetics": [
-        {"term": "Gene", "translation": "unit of heredity", "example": "This gene affects eye color."},
-        {"term": "DNA", "translation": "genetic material", "example": "DNA carries genetic information."},
-        {"term": "Mutation", "translation": "change in DNA", "example": "A mutation can cause disease."},
-        {"term": "Heredity", "translation": "passing traits from parents", "example": "Heredity shapes many traits."},
-    ],
-    "anatomy": [
-        {"term": "Cardiac", "translation": "relating to the heart", "example": "Cardiac arrest is a medical emergency."},
-        {"term": "Pulmonary", "translation": "relating to the lungs", "example": "Pulmonary function was normal."},
-        {"term": "Vascular", "translation": "relating to blood vessels", "example": "Vascular disease can be prevented."},
-        {"term": "Neural", "translation": "relating to the nerves", "example": "Neural pathways carry signals."},
-    ],
-    "education": [
-        {"term": "Curriculum", "translation": "planned learning content", "example": "The curriculum covers grammar and reading."},
-        {"term": "Assessment", "translation": "evaluation of learning", "example": "Weekly assessments track progress."},
-        {"term": "Feedback", "translation": "response to work", "example": "Constructive feedback improves writing."},
-        {"term": "Pedagogy", "translation": "teaching methods", "example": "Modern pedagogy emphasises active learning."},
-    ],
-    "business": [
-        {"term": "Revenue", "translation": "income from sales", "example": "Revenue grew 20% last quarter."},
-        {"term": "Stakeholder", "translation": "interested party", "example": "We updated all stakeholders on the launch."},
-        {"term": "Deadline", "translation": "final date", "example": "The deadline is next Friday."},
-        {"term": "Negotiate", "translation": "reach an agreement", "example": "They negotiated a better price."},
-    ],
-    "science": [
-        {"term": "Hypothesis", "translation": "testable prediction", "example": "The hypothesis was confirmed."},
-        {"term": "Experiment", "translation": "test to check a hypothesis", "example": "The experiment produced clear results."},
-        {"term": "Data", "translation": "collected information", "example": "We analysed the data carefully."},
-    ],
-    "tech": [
-        {"term": "Bug", "translation": "programming error", "example": "I fixed a bug in the login flow."},
-        {"term": "Deploy", "translation": "release software", "example": "We deploy every Thursday."},
-        {"term": "Feature", "translation": "product capability", "example": "The new feature ships this week."},
-    ],
-    "travel": [
-        {"term": "Itinerary", "translation": "travel plan", "example": "Here is our itinerary for the trip."},
-        {"term": "Boarding pass", "translation": "pass to enter a plane", "example": "Please show your boarding pass."},
-        {"term": "Layover", "translation": "stop between flights", "example": "We have a two-hour layover in Rome."},
-    ],
-}
-
-LESSONS_SEED: list[dict[str, Any]] = [
-    {
-        "id": "hc-job-interview",
-        "title": "Prepare for a healthcare job interview",
-        "description": "The lesson contains some common healthcare interview questions and tips on how to answer them.",
-        "topic_id": "medicine",
-        "level": "Advanced",
-        "minutes": 35,
-        "xp_reward": 40,
-    },
-    {
-        "id": "hc-cv",
-        "title": "Writing a healthcare CV",
-        "description": "Learn how to write a good CV to apply for a role in healthcare. Practise common vocabulary and write your own CV.",
-        "topic_id": "medicine",
-        "level": "Intermediate",
-        "minutes": 25,
-        "xp_reward": 30,
-    },
-    {
-        "id": "pharmacy-basics",
-        "title": "Talking to patients in a pharmacy",
-        "description": "Common phrases and vocabulary used when helping customers at the pharmacy counter.",
-        "topic_id": "pharmacy",
-        "level": "Beginner",
-        "minutes": 20,
-        "xp_reward": 20,
-    },
-    {
-        "id": "virology-terms",
-        "title": "Essential virology vocabulary",
-        "description": "Master core virology terms with real-world examples used in hospitals and labs.",
-        "topic_id": "virology",
-        "level": "Advanced",
-        "minutes": 30,
-        "xp_reward": 35,
-    },
-    {
-        "id": "business-emails",
-        "title": "Writing professional emails",
-        "description": "Craft clear, polite emails for meetings, follow-ups, and negotiations.",
-        "topic_id": "business",
-        "level": "Intermediate",
-        "minutes": 22,
-        "xp_reward": 25,
-    },
-    {
-        "id": "travel-airport",
-        "title": "Airport English essentials",
-        "description": "Check-in, security, boarding — the phrases you need to travel with confidence.",
-        "topic_id": "travel",
-        "level": "Beginner",
-        "minutes": 18,
-        "xp_reward": 20,
-    },
-]
-
-CHALLENGES_SEED: list[dict[str, Any]] = [
-    {"id": "learn-20-words", "title": "Learn 20 new words", "days_left": 3, "goal_type": "words_learned", "target": 20, "icon": "reader-outline"},
-    {"id": "complete-3-lessons", "title": "Complete 3 lessons", "days_left": 5, "goal_type": "lessons_completed", "target": 3, "icon": "trophy-outline"},
-    {"id": "3-day-streak", "title": "Reach a 3-day streak", "days_left": 7, "goal_type": "streak", "target": 3, "icon": "flame-outline"},
-]
+from routes.vocab_content import (  # noqa: E402
+    CHALLENGES_SEED,
+    LESSONS_SEED,
+    TOPICS_SEED,
+    WORDS_SEED,
+)
 
 
 def _lesson_steps(lesson: dict[str, Any], words: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Assemble a linear step list for the lesson player from topic words."""
-    # Take up to 6 words for the lesson body; final step is a quiz.
-    lesson_words = words[:6] if words else []
+    """Assemble a linear step list for the lesson player from topic words.
+
+    Structure: 8 vocab cards, with a multiple-choice quiz inserted after every
+    4th card (or fewer if there aren't enough words), followed by a `done`
+    step. Quiz distractors are drawn from the same topic to make the choices
+    plausible.
+    """
+    lesson_words = words[:8] if words else []
     steps: list[dict[str, Any]] = []
-    for w in lesson_words:
+    quiz_pool = lesson_words[:] or []
+
+    def push_quiz(target: dict[str, Any]) -> None:
+        pool = [w for w in quiz_pool if w["id"] != target["id"]]
+        distractors = [w["term"] for w in pool[:3]]
+        options = list({target["term"], *distractors})
+        while len(options) < 4 and pool:
+            candidate = pool.pop(0)["term"]
+            if candidate not in options:
+                options.append(candidate)
+        # Deterministic-but-varied order: rotate so the answer is not always first.
+        idx = (sum(ord(c) for c in target["id"]) % max(1, len(options)))
+        options = options[idx:] + options[:idx]
+        steps.append({
+            "kind": "quiz",
+            "prompt": f"Which word means: \u201c{target['translation']}\u201d?",
+            "options": options,
+            "answer": target["term"],
+            "word_id": target["id"],
+        })
+
+    for i, w in enumerate(lesson_words):
         steps.append({
             "kind": "vocab",
             "term": w["term"],
@@ -210,19 +98,14 @@ def _lesson_steps(lesson: dict[str, Any], words: list[dict[str, Any]]) -> list[d
             "example": w.get("example", ""),
             "word_id": w["id"],
         })
-    if lesson_words:
-        target = lesson_words[0]
-        options = [w["term"] for w in lesson_words[:4]]
-        # Ensure the correct answer is present + unique
-        if target["term"] not in options:
-            options[0] = target["term"]
-        steps.append({
-            "kind": "quiz",
-            "prompt": f"Which word means: “{target['translation']}”?",
-            "options": options,
-            "answer": target["term"],
-            "word_id": target["id"],
-        })
+        # Quiz every 4th card, using that card as the answer.
+        if (i + 1) % 4 == 0:
+            push_quiz(w)
+
+    # Guarantee at least one quiz at the end if none has been added yet.
+    if lesson_words and not any(s["kind"] == "quiz" for s in steps):
+        push_quiz(lesson_words[0])
+
     steps.append({"kind": "done", "message": f"You earned {lesson['xp_reward']} XP!"})
     return steps
 
@@ -504,10 +387,14 @@ async def me_continue(current: CurrentUser) -> dict[str, Any]:
         raise HTTPException(404, "No lessons available")
     topic = await vocab_topics_col.find_one({"_id": lesson["topic_id"]})
     lp = await vocab_lesson_prog_col.find_one({"user_id": current["_id"], "lesson_id": lesson["_id"]}) or {}
-    total_steps = 7  # 6 vocab + 1 quiz (matches _lesson_steps output for full topics)
+    # Compute expected step count from real content (8 vocab max + up to 2 quizzes + done).
+    total_words = await vocab_words_col.count_documents({"topic_id": lesson["topic_id"]})
+    vocab_steps = min(8, total_words)
+    quiz_steps = 1 + (1 if vocab_steps >= 8 else 0)
+    total_steps = max(1, vocab_steps + quiz_steps + 1)
     progress = 0.0
     if lp:
-        progress = min(1.0, (lp.get("current_step", 0) or 0) / max(1, total_steps))
+        progress = min(1.0, (lp.get("current_step", 0) or 0) / total_steps)
     return {
         "id": lesson["_id"],
         "title": lesson["title"],
