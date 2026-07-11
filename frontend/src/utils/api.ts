@@ -205,6 +205,10 @@ export interface MomentComment {
   text: string;
   reply_to?: string | null;
   reply_to_author?: string | null;
+  root_id?: string | null;
+  like_count?: number;
+  liked_by_me?: boolean;
+  reply_count?: number;
   created_at: string;
 }
 

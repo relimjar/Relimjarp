@@ -1,26 +1,30 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useLearnTheme } from "@/src/learn/ThemeContext";
-
-type MciIcon = keyof typeof MaterialCommunityIcons.glyphMap;
+import {
+  HomeTabIcon,
+  LessonsTabIcon,
+  ProfileTabIcon,
+  TabIconProps,
+  TutorsTabIcon,
+  VocabTabIcon,
+} from "@/src/learn/tabIcons";
 
 type TabDef = {
   name: string;
   label: string;
-  icon: MciIcon;
-  iconActive: MciIcon;
+  Icon: (p: TabIconProps) => React.ReactElement;
 };
 
 const TABS: TabDef[] = [
-  { name: "index", label: "Home", icon: "home-outline", iconActive: "home-outline" },
-  { name: "lessons", label: "Lessons", icon: "play-circle-outline", iconActive: "play-circle-outline" },
-  { name: "vocabulary", label: "Vocabulary", icon: "book-outline", iconActive: "book-outline" },
-  { name: "tutors", label: "Tutors", icon: "emoticon-outline", iconActive: "emoticon-outline" },
-  { name: "profile", label: "Profile", icon: "account-circle-outline", iconActive: "account-circle-outline" },
+  { name: "index", label: "Home", Icon: HomeTabIcon },
+  { name: "lessons", label: "Lessons", Icon: LessonsTabIcon },
+  { name: "vocabulary", label: "Vocabulary", Icon: VocabTabIcon },
+  { name: "tutors", label: "Tutors", Icon: TutorsTabIcon },
+  { name: "profile", label: "Profile", Icon: ProfileTabIcon },
 ];
 
 function VocabTabBar({ state, navigation }: any) {
@@ -46,6 +50,7 @@ function VocabTabBar({ state, navigation }: any) {
           };
           const iconColor = focused ? colors.tabActiveText : colors.tabInactive;
           const labelColor = focused ? colors.tabActivePill : colors.tabInactiveLabel;
+          const Icon = def.Icon;
           return (
             <Pressable
               key={route.key}
@@ -60,11 +65,7 @@ function VocabTabBar({ state, navigation }: any) {
                   focused && { backgroundColor: colors.tabActivePill },
                 ]}
               >
-                <MaterialCommunityIcons
-                  name={focused ? def.iconActive : def.icon}
-                  size={26}
-                  color={iconColor}
-                />
+                <Icon size={24} color={iconColor} strokeWidth={1.8} />
               </View>
               <Text
                 numberOfLines={1}

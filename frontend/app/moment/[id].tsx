@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +38,80 @@ export default function MomentDetail() {
   const [posting, setPosting] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(
     null,
+  );
+  const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
+  const toggleExpand = useCallback((rootId: string) => {
+    setExpandedRoots((prev) => {
+      const next = new Set(prev);
+      if (next.has(rootId)) next.delete(rootId); else next.add(rootId);
+      return next;
+    });
+  }, []);
+
+  // Split flat comments into roots + replies keyed by root id (Twitter-style
+  // thread grouping). Replies inherit `root_id` from their parent; roots have
+  // no `reply_to`.
+  const { rootComments, repliesByRoot } = useMemo(() => {
+    const all = (moment?.comments || []) as MomentComment[];
+    const roots = all.filter((c) => !c.reply_to);
+    const map = new Map<string, MomentComment[]>();
+    for (const c of all) {
+      if (c.reply_to) {
+        const key = c.root_id || c.reply_to;
+        const arr = map.get(key) || [];
+        arr.push(c);
+        map.set(key, arr);
+      }
+    }
+    return { rootComments: roots, repliesByRoot: map };
+  }, [moment?.comments]);
+
+  const likeComment = useCallback(
+    async (commentId: string) => {
+      if (!moment) return;
+      // Optimistic toggle
+      const target = (moment.comments || []).find((c) => c.id === commentId);
+      const wasLiked = !!target?.liked_by_me;
+      setMoment((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          comments: (prev.comments || []).map((c) =>
+            c.id === commentId
+              ? {
+                  ...c,
+                  liked_by_me: !wasLiked,
+                  like_count: Math.max(0, (c.like_count || 0) + (wasLiked ? -1 : 1)),
+                }
+              : c,
+          ),
+        };
+      });
+      try {
+        Haptics.selectionAsync();
+        await api.post<{ liked: boolean; like_count: number }>(
+          `/moments/${id}/comments/${commentId}/like`,
+        );
+      } catch {
+        // Revert on failure
+        setMoment((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            comments: (prev.comments || []).map((c) =>
+              c.id === commentId
+                ? {
+                    ...c,
+                    liked_by_me: wasLiked,
+                    like_count: Math.max(0, (c.like_count || 0) + (wasLiked ? 1 : -1)),
+                  }
+                : c,
+            ),
+          };
+        });
+      }
+    },
+    [id, moment],
   );
   const [translation, setTranslation] = useState<string | null>(null);
   const [showAuthorBar, setShowAuthorBar] = useState(false);
@@ -202,7 +276,7 @@ export default function MomentDetail() {
           </View>
         ) : (
           <FlatList
-            data={moment.comments || []}
+            data={rootComments}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             onScroll={(e) =>
@@ -368,58 +442,183 @@ export default function MomentDetail() {
                 No comments yet — be the first!
               </Text>
             }
-            renderItem={({ item }) => (
-              <View
-                style={[styles.commentRow, item.reply_to && styles.replyRow]}
-              >
-                <Pressable
-                  testID={`comment-author-avatar-${item.id}`}
-                  onPress={() =>
-                    item.author?.id && router.push(`/user/${item.author.id}`)
-                  }
-                >
-                  <Avatar
-                    name={item.author?.name}
-                    url={item.author?.avatar_url}
-                    size={36}
-                    flagCode={countryToCode(item.author?.country)}
-                    online={item.author?.is_online}
-                  />
-                </Pressable>
-                <View style={styles.commentBody}>
-                  <Text style={styles.commentAuthor}>
-                    {item.author?.name}{" "}
-                    <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
-                  </Text>
-                  {item.reply_to_author ? (
-                    <View style={styles.replyTag}>
-                      <Ionicons
-                        name="return-down-forward"
-                        size={12}
-                        color={colors.brand}
-                      />
-                      <Text style={styles.replyTagText}>
-                        Replying to {item.reply_to_author}
-                      </Text>
+            renderItem={({ item }) => {
+              const replies = repliesByRoot.get(item.id) || [];
+              const expanded = expandedRoots.has(item.id);
+              const totalReplies = item.reply_count ?? replies.length;
+              return (
+                <View testID={`thread-${item.id}`}>
+                  {/* Root comment */}
+                  <View style={styles.threadRootRow}>
+                    <View style={styles.threadAvatarCol}>
+                      <Pressable
+                        testID={`comment-author-avatar-${item.id}`}
+                        onPress={() =>
+                          item.author?.id && router.push(`/user/${item.author.id}`)
+                        }
+                      >
+                        <Avatar
+                          name={item.author?.name}
+                          url={item.author?.avatar_url}
+                          size={38}
+                          flagCode={countryToCode(item.author?.country)}
+                          online={item.author?.is_online}
+                        />
+                      </Pressable>
+                      {expanded && replies.length > 0 ? (
+                        <View style={styles.threadLine} />
+                      ) : null}
                     </View>
-                  ) : null}
-                  <Text style={styles.commentText}>{item.text}</Text>
-                  <Pressable
-                    testID={`comment-reply-btn-${item.id}`}
-                    onPress={() =>
-                      setReplyTo({
-                        id: item.id,
-                        name: item.author?.name || "comment",
-                      })
-                    }
-                    hitSlop={6}
-                    style={{ alignSelf: "flex-start" }}
-                  >
-                    <Text style={styles.replyBtnText}>Reply</Text>
-                  </Pressable>
+                    <View style={styles.commentBody}>
+                      <Text style={styles.commentAuthor}>
+                        {item.author?.name}{" "}
+                        <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
+                      </Text>
+                      <Text style={styles.commentText}>{item.text}</Text>
+                      <View style={styles.commentActionRow}>
+                        <Pressable
+                          testID={`comment-reply-btn-${item.id}`}
+                          onPress={() =>
+                            setReplyTo({
+                              id: item.id,
+                              name: item.author?.name || "comment",
+                            })
+                          }
+                          hitSlop={6}
+                          style={styles.commentAction}
+                        >
+                          <Ionicons
+                            name="chatbubble-outline"
+                            size={14}
+                            color={colors.onSurfaceSecondary}
+                          />
+                          <Text style={styles.commentActionText}>Reply</Text>
+                        </Pressable>
+                        <Pressable
+                          testID={`comment-like-btn-${item.id}`}
+                          onPress={() => likeComment(item.id)}
+                          hitSlop={6}
+                          style={styles.commentAction}
+                        >
+                          <Ionicons
+                            name={item.liked_by_me ? "heart" : "heart-outline"}
+                            size={15}
+                            color={item.liked_by_me ? "#FF3B5C" : colors.onSurfaceSecondary}
+                          />
+                          {(item.like_count || 0) > 0 ? (
+                            <Text
+                              style={[
+                                styles.commentActionText,
+                                item.liked_by_me && { color: "#FF3B5C" },
+                              ]}
+                            >
+                              {item.like_count}
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                      </View>
+                      {totalReplies > 0 ? (
+                        <Pressable
+                          testID={`comment-toggle-replies-${item.id}`}
+                          onPress={() => toggleExpand(item.id)}
+                          style={styles.toggleRepliesRow}
+                          hitSlop={6}
+                        >
+                          <View style={styles.toggleRepliesDash} />
+                          <Text style={styles.toggleRepliesText}>
+                            {expanded
+                              ? "Hide replies"
+                              : `View ${totalReplies} ${totalReplies === 1 ? "reply" : "replies"}`}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {/* Nested replies (Twitter-flat: all descendants under root) */}
+                  {expanded
+                    ? replies.map((r, idx) => (
+                        <View key={r.id} style={styles.replyRowWrap}>
+                          <View style={styles.threadAvatarCol}>
+                            {idx < replies.length - 1 ? (
+                              <View style={styles.threadLineFull} />
+                            ) : null}
+                            <View style={styles.threadElbow} />
+                            <Pressable
+                              onPress={() =>
+                                r.author?.id && router.push(`/user/${r.author.id}`)
+                              }
+                            >
+                              <Avatar
+                                name={r.author?.name}
+                                url={r.author?.avatar_url}
+                                size={30}
+                                flagCode={countryToCode(r.author?.country)}
+                                online={r.author?.is_online}
+                              />
+                            </Pressable>
+                          </View>
+                          <View style={styles.commentBody}>
+                            <Text style={styles.commentAuthor}>
+                              {r.author?.name}{" "}
+                              <Text style={styles.time}>{timeAgo(r.created_at)}</Text>
+                            </Text>
+                            {r.reply_to_author &&
+                            r.reply_to_author !== item.author?.name ? (
+                              <Text style={styles.replyingToText}>
+                                Replying to <Text style={{ color: colors.brand }}>@{r.reply_to_author}</Text>
+                              </Text>
+                            ) : null}
+                            <Text style={styles.commentText}>{r.text}</Text>
+                            <View style={styles.commentActionRow}>
+                              <Pressable
+                                testID={`comment-reply-btn-${r.id}`}
+                                onPress={() =>
+                                  setReplyTo({
+                                    id: r.id,
+                                    name: r.author?.name || "comment",
+                                  })
+                                }
+                                hitSlop={6}
+                                style={styles.commentAction}
+                              >
+                                <Ionicons
+                                  name="chatbubble-outline"
+                                  size={13}
+                                  color={colors.onSurfaceSecondary}
+                                />
+                                <Text style={styles.commentActionText}>Reply</Text>
+                              </Pressable>
+                              <Pressable
+                                testID={`comment-like-btn-${r.id}`}
+                                onPress={() => likeComment(r.id)}
+                                hitSlop={6}
+                                style={styles.commentAction}
+                              >
+                                <Ionicons
+                                  name={r.liked_by_me ? "heart" : "heart-outline"}
+                                  size={14}
+                                  color={r.liked_by_me ? "#FF3B5C" : colors.onSurfaceSecondary}
+                                />
+                                {(r.like_count || 0) > 0 ? (
+                                  <Text
+                                    style={[
+                                      styles.commentActionText,
+                                      r.liked_by_me && { color: "#FF3B5C" },
+                                    ]}
+                                  >
+                                    {r.like_count}
+                                  </Text>
+                                ) : null}
+                              </Pressable>
+                            </View>
+                          </View>
+                        </View>
+                      ))
+                    : null}
                 </View>
-              </View>
-            )}
+              );
+            }}
           />
         )}
 
@@ -658,6 +857,92 @@ const makeStyles = (colors: ThemeColors) =>
   replyRow: {
     marginLeft: spacing.xl + spacing.sm,
   },
+  // -- Threaded (Twitter-style) comment styles --
+  threadRootRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  threadAvatarCol: {
+    width: 38,
+    alignItems: "center",
+    position: "relative",
+  },
+  threadLine: {
+    position: "absolute",
+    top: 44,
+    bottom: -8,
+    left: 18,
+    width: 2,
+    backgroundColor: colors.border,
+    borderRadius: 1,
+  },
+  threadLineFull: {
+    position: "absolute",
+    top: 0,
+    bottom: -8,
+    left: 18,
+    width: 2,
+    backgroundColor: colors.border,
+    borderRadius: 1,
+  },
+  threadElbow: {
+    position: "absolute",
+    top: 0,
+    left: 18,
+    width: 18,
+    height: 22,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: colors.border,
+    borderBottomLeftRadius: 12,
+  },
+  replyRowWrap: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingLeft: spacing.lg + 4,
+    paddingTop: spacing.sm,
+  },
+  commentActionRow: {
+    flexDirection: "row",
+    gap: spacing.lg,
+    marginTop: 6,
+  },
+  commentAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 2,
+  },
+  commentActionText: {
+    fontFamily: fonts.textSemi,
+    fontSize: 12,
+    color: colors.onSurfaceSecondary,
+  },
+  toggleRepliesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  toggleRepliesDash: {
+    width: 24,
+    height: 2,
+    backgroundColor: colors.border,
+    borderRadius: 1,
+  },
+  toggleRepliesText: {
+    fontFamily: fonts.textBold,
+    fontSize: 12,
+    color: colors.brand,
+  },
+  replyingToText: {
+    fontFamily: fonts.text,
+    fontSize: 12,
+    color: colors.onSurfaceSecondary,
+    marginTop: 1,
+  },
+  // -- legacy (kept in case other components reference) --
   replyTag: {
     flexDirection: "row",
     alignItems: "center",

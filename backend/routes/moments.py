@@ -174,13 +174,23 @@ async def moment_public(doc: dict, viewer_id: str, author: dict | None = None) -
     }
 
 
-def comment_public(doc: dict, author: dict | None) -> dict:
+def comment_public(
+    doc: dict,
+    author: dict | None,
+    viewer_id: str | None = None,
+    reply_counts: dict[str, int] | None = None,
+) -> dict:
+    likes = doc.get("likes", []) or []
     return {
         "id": doc["_id"],
         "author": _card_with_presence(author),
         "text": doc["text"],
         "reply_to": doc.get("reply_to"),
         "reply_to_author": doc.get("reply_to_author"),
+        "root_id": doc.get("root_id"),
+        "like_count": len(likes),
+        "liked_by_me": bool(viewer_id and viewer_id in likes),
+        "reply_count": (reply_counts or {}).get(doc["_id"], 0),
         "created_at": doc["created_at"],
     }
 
@@ -335,7 +345,7 @@ async def get_moment(moment_id: str, current_user: CurrentUser):
         raise HTTPException(status_code=404, detail="Moment not found")
     moment = await moment_public(doc, current_user["_id"])
     comment_docs = (
-        await comments_col.find({"moment_id": moment_id}).sort("created_at", 1).to_list(200)
+        await comments_col.find({"moment_id": moment_id}).sort("created_at", 1).to_list(500)
     )
     author_ids = list({c["user_id"] for c in comment_docs})
     authors = (
@@ -344,8 +354,21 @@ async def get_moment(moment_id: str, current_user: CurrentUser):
         else []
     )
     author_map = {u["_id"]: u for u in authors}
+    # Count how many replies each comment has anywhere in its subtree ─ we
+    # roll up direct children AND grandchildren using root_id so a "N replies"
+    # counter on the top-level card matches Twitter behaviour.
+    reply_counts: dict[str, int] = {}
+    for c in comment_docs:
+        parent_id = c.get("reply_to")
+        if parent_id:
+            reply_counts[parent_id] = reply_counts.get(parent_id, 0) + 1
+        root_id = c.get("root_id")
+        if root_id and root_id != parent_id:
+            reply_counts[root_id] = reply_counts.get(root_id, 0) + 1
+    viewer_id = current_user["_id"]
     moment["comments"] = [
-        comment_public(c, author_map.get(c["user_id"])) for c in comment_docs
+        comment_public(c, author_map.get(c["user_id"]), viewer_id, reply_counts)
+        for c in comment_docs
     ]
     return moment
 
@@ -387,6 +410,7 @@ async def add_comment(moment_id: str, body: CommentCreate, current_user: Current
         "moment_id": moment_id,
         "user_id": current_user["_id"],
         "text": body.text,
+        "likes": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     parent = None
@@ -399,6 +423,9 @@ async def add_comment(moment_id: str, body: CommentCreate, current_user: Current
         parent_author = await users_col.find_one({"_id": parent["user_id"]})
         comment["reply_to"] = body.reply_to
         comment["reply_to_author"] = parent_author.get("name") if parent_author else None
+        # Root = top-level ancestor. If parent is itself a reply, inherit its
+        # root_id; otherwise the parent IS the root.
+        comment["root_id"] = parent.get("root_id") or parent["_id"]
     await comments_col.insert_one(comment)
     await moments_col.update_one({"_id": moment_id}, {"$inc": {"comment_count": 1}})
     if parent:
@@ -413,4 +440,25 @@ async def add_comment(moment_id: str, body: CommentCreate, current_user: Current
         await _notify(
             doc["user_id"], current_user["_id"], "comment", moment_id, body.text
         )
-    return comment_public(comment, current_user)
+    return comment_public(comment, current_user, current_user["_id"], {})
+
+
+@router.post("/{moment_id}/comments/{comment_id}/like")
+async def toggle_comment_like(
+    moment_id: str, comment_id: str, current_user: CurrentUser
+):
+    doc = await comments_col.find_one({"_id": comment_id, "moment_id": moment_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    likes = doc.get("likes", []) or []
+    liked = current_user["_id"] in likes
+    op = "$pull" if liked else "$addToSet"
+    await comments_col.update_one(
+        {"_id": comment_id}, {op: {"likes": current_user["_id"]}}
+    )
+    new_count = len(likes) + (-1 if liked else 1)
+    if not liked and doc["user_id"] != current_user["_id"]:
+        await _notify(
+            doc["user_id"], current_user["_id"], "like", moment_id, doc.get("text")
+        )
+    return {"liked": not liked, "like_count": new_count}

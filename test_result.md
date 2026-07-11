@@ -2217,3 +2217,40 @@ test_plan:
 agent_communication:
     - agent: "testing"
       message: "✅ VOCAB SUB-APP BACKEND TESTING COMPLETED SUCCESSFULLY (19/19 tests passed, 0 failures). Comprehensive testing of all /api/vocab/* endpoints with mei@demo.com. ALL CRITICAL FUNCTIONALITY WORKING: (1) Topics list returns 10 topics with word counts ✅ (2) Single topic endpoint works ✅ (3) Topic words return with per-user status (default 'new') ✅ (4) Lessons list with all fields ✅ (5) Level filtering works (Advanced returns 2 lessons) ✅ (6) Lesson detail with steps array (6 vocab + 1 quiz + 1 done) and progress object ✅ (7) Word progress update sets status='known', returns updated stats with words_learned=1 ✅ (8) Lesson completion awards XP=20 on first call, XP=0 on second call (idempotent) ✅ (9) Stats endpoint shows words_learned=1, lessons_completed=1, xp=22, level=1, streak=1 after actions ✅ (10) Continue endpoint returns recommended lesson ✅ (11) Bookmark toggle works (true→false) ✅ (12) Bookmark status matches current state ✅ (13) Bookmarks list grouped by type ✅ (14) Booking creation with tutor from /api/pro/tutors works, returns _id ✅ (15) Bookings list enriched with tutor_name ✅ (16) Booking deletion works, second delete returns 404 ✅ (17) Challenges return with computed progress (words_learned challenge shows current=1) ✅ (18) Auth enforcement working (401 without token) ✅ (19) 404 for non-existent resources ✅. NO CRITICAL ISSUES FOUND. All endpoints working perfectly with correct validation, data types, error handling, and authentication. Vocab sub-app backend is production-ready. Ready for main agent to summarize and finish."
+
+
+## Round 23 — Twitter-style Threaded Comments Backend Testing
+user_problem_statement: Test the new **Twitter-style threaded comments** backend endpoints on `/api/moments/*`. Auth: login as `mei@demo.com` / `Demo1234!`. Test all comment creation, reply threading, like/unlike functionality, reply_count rollup, and error handling.
+
+backend:
+  - task: "Twitter-style threaded comments API — POST/GET comments with reply_to, root_id inheritance, reply_count rollup, like/unlike"
+    implemented: true
+    working: true
+    file: "backend/routes/moments.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Implemented Twitter-style threaded comments on /api/moments/{moment_id}/comments. Features: POST comment with optional reply_to creates threaded replies, root_id automatically inherited from parent (if parent is reply) or set to parent's id (if parent is root), reply_count computed by rolling up direct children AND grandchildren using root_id (Twitter behavior), POST /api/moments/{moment_id}/comments/{comment_id}/like toggles like with like_count and liked_by_me, GET /api/moments/{moment_id} returns moment with comments array including all threading metadata. Auth required via Bearer token."
+        - working: true
+          agent: "testing"
+          comment: "✅ COMPREHENSIVE THREADED COMMENTS TESTING COMPLETED (10/10 tests passed, 0 failures). Tested all /api/moments/* endpoints for threaded comments with mei@demo.com. PASSED TESTS: (1) POST root comment A returns comment with id, root_id=null, like_count=0, liked_by_me=false, reply_count=0 ✅ (2) POST reply 1 to comment A returns comment with reply_to=comment_A_id, root_id=comment_A_id (parent is root so root_id=parent_id) ✅ (3) POST reply to reply 1 (grandchild) returns comment with reply_to=reply_1_id, root_id=comment_A_id (inherited from parent's root_id - correct Twitter-style threading) ✅ (4) POST root comment B returns new root with root_id=null ✅ (5) GET /api/moments/{moment_id} returns comments array with correct reply_count rollup: Comment A (root) has reply_count=2 (1 direct reply + 1 grandchild rolled up), Reply 1 has reply_count=1 (1 direct reply). All comments have like_count, liked_by_me, root_id fields ✅ (6) POST like on comment A returns {liked:true, like_count:1}, re-GET moment confirms like_count=1 and liked_by_me=true persisted correctly ✅ (7) POST like again on comment A toggles to {liked:false, like_count:0} (unlike works) ✅ (8) POST like on nonexistent comment_id returns 404 ✅ (9) POST comment with nonexistent reply_to returns 404 ✅ (10) All endpoints (POST /moments, GET /moments/{id}, POST /moments/{id}/comments, POST /moments/{id}/comments/{cid}/like) correctly return 401 without Bearer token ✅. NO CRITICAL ISSUES FOUND. All threaded comments endpoints working perfectly with correct root_id inheritance, reply_count rollup (Twitter-style: direct children + grandchildren), like/unlike toggle, error handling (404 for nonexistent resources), and authentication enforcement. Ready for main agent to summarize and finish."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 23
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Twitter-style threaded comments backend endpoints"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "✅ TWITTER-STYLE THREADED COMMENTS BACKEND TESTING COMPLETED SUCCESSFULLY (10/10 tests passed, 0 failures). Comprehensive testing of all /api/moments/* endpoints for threaded comments with mei@demo.com. ALL CRITICAL FUNCTIONALITY WORKING: (1) Root comment creation with root_id=null ✅ (2) Direct reply with reply_to and root_id=parent_id ✅ (3) Grandchild reply with root_id inherited from parent (Twitter-style threading) ✅ (4) Multiple root comments supported ✅ (5) Reply count rollup correctly counts direct children + grandchildren (Comment A: reply_count=2 for 1 direct + 1 grandchild, Reply 1: reply_count=1) ✅ (6) Like comment works and persists (like_count=1, liked_by_me=true) ✅ (7) Unlike toggle works (like_count=0, liked_by_me=false) ✅ (8) 404 for nonexistent comment_id ✅ (9) 404 for nonexistent reply_to ✅ (10) Auth enforcement working (401 without token) ✅. NO CRITICAL ISSUES FOUND. All endpoints working perfectly with correct validation, data types, error handling, and authentication. Twitter-style threaded comments backend is production-ready. Ready for main agent to summarize and finish."
