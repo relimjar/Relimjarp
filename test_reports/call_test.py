@@ -9,7 +9,7 @@ import uuid
 import requests
 from playwright.async_api import async_playwright, Dialog
 
-BASE = "https://chat-premium-colors.preview.emergentagent.com"
+BASE = "https://run-app-57.preview.emergentagent.com"
 API = BASE + "/api"
 
 DEMO = ("demo@demo.com", "Demo1234!")
