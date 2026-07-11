@@ -1,37 +1,99 @@
-// Learn / Vocab sub-app design tokens — matches uploaded reference designs
-// Dark near-black background with pastel accents (purple, mint, lime, coral).
+// Vocab sub-app design tokens — dark + light palettes with a shared runtime shape.
+// Cards keep their bright colors in both modes; only chrome (bg / text / tab bar)
+// swaps between the two.
 
-export const learnColors = {
-  // Base
+export type LearnThemeMode = "dark" | "light";
+
+export type LearnPalette = {
+  mode: LearnThemeMode;
+  bg: string;
+  surface: string;
+  surfaceRaised: string;
+  border: string;
+  text: string;
+  textDim: string;
+  textFaint: string;
+  onLight: string;
+  cardLight: string;
+  cardMint: string;
+  cardMintDeep: string;
+  cardLime: string;
+  cardCoral: string;
+  cardPurple: string;
+  cardPurpleSoft: string;
+  purple: string;
+  purpleDark: string;
+  green: string;
+  lime: string;
+  coral: string;
+  tabBg: string;
+  tabActivePill: string;
+  tabActiveText: string;
+  tabInactive: string;
+  tabInactiveLabel: string;
+};
+
+export const darkPalette: LearnPalette = {
+  mode: "dark",
   bg: "#0B0B0F",
   surface: "#121218",
   surfaceRaised: "#1A1A21",
   border: "#2A2A34",
-  // Text
   text: "#FFFFFF",
   textDim: "#9A9AA5",
   textFaint: "#6B6B75",
   onLight: "#0B0B0F",
-  // Card / chip surfaces
-  cardLight: "#F2F2F4",     // white lesson cards
-  cardMint: "#C8E4B4",      // tutor & chip mint
+  cardLight: "#F2F2F4",
+  cardMint: "#C8E4B4",
   cardMintDeep: "#B7D8A2",
-  cardLime: "#E8F569",      // vocabulary topic tiles
-  cardCoral: "#F0715C",     // challenge card
-  cardPurple: "#B7A0F5",    // in-progress + book lesson button
+  cardLime: "#E8F569",
+  cardCoral: "#F0715C",
+  cardPurple: "#B7A0F5",
   cardPurpleSoft: "#D8CBFF",
-  // Accents
   purple: "#A78BFA",
   purpleDark: "#7C5CE0",
   green: "#8FCB6F",
   lime: "#D6E85E",
   coral: "#F0715C",
-  // Tab bar
   tabBg: "#0B0B0F",
   tabActivePill: "#B7A0F5",
   tabActiveText: "#0B0B0F",
   tabInactive: "#E4E4EA",
-} as const;
+  tabInactiveLabel: "#E4E4EA",
+};
+
+export const lightPalette: LearnPalette = {
+  mode: "light",
+  bg: "#F5F5F1",
+  surface: "#FFFFFF",
+  surfaceRaised: "#FFFFFF",
+  border: "#E4E4EA",
+  text: "#0B0B0F",
+  textDim: "#5A5A63",
+  textFaint: "#8A8A93",
+  onLight: "#0B0B0F",
+  cardLight: "#FFFFFF",
+  cardMint: "#C8E4B4",
+  cardMintDeep: "#B7D8A2",
+  cardLime: "#E8F569",
+  cardCoral: "#F0715C",
+  cardPurple: "#B7A0F5",
+  cardPurpleSoft: "#D8CBFF",
+  purple: "#7C5CE0",
+  purpleDark: "#5A3EC4",
+  green: "#6BA84F",
+  lime: "#D6E85E",
+  coral: "#F0715C",
+  tabBg: "#FFFFFF",
+  tabActivePill: "#B7A0F5",
+  tabActiveText: "#0B0B0F",
+  tabInactive: "#0B0B0F",
+  tabInactiveLabel: "#2A2A34",
+};
+
+// Default export kept for legacy imports that still reference `learnColors`.
+// It maps to whichever palette is active on first load (dark by default).
+export const learnColors = darkPalette;
 
 export const learnRadius = {
   chip: 999,

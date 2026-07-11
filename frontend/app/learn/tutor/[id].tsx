@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { api } from "@/src/utils/api";
-import { learnColors, learnRadius } from "@/src/learn/theme";
+import { useLearnTheme } from "@/src/learn/ThemeContext";
+import { learnRadius, LearnPalette } from "@/src/learn/theme";
 
 type ProTutor = {
   id: string;
@@ -21,7 +22,7 @@ type ProTutor = {
   specialties?: string[];
 };
 
-type Review = { id: string; name: string; date: string; text: string; avatar?: string };
+type Review = { id: string; name: string; date: string; text: string };
 
 const FALLBACK_REVIEWS: Review[] = [
   {
@@ -44,6 +45,8 @@ export default function TutorDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [tutor, setTutor] = useState<ProTutor | null>(null);
   const [loading, setLoading] = useState(true);
+  const { colors } = useLearnTheme();
+  const s = useMemo(() => makeStyles(colors), [colors]);
 
   useEffect(() => {
     let mounted = true;
@@ -64,18 +67,18 @@ export default function TutorDetail() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: learnColors.bg, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color={learnColors.cardPurple} />
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.cardPurple} />
       </View>
     );
   }
 
   if (!tutor) {
     return (
-      <View style={{ flex: 1, backgroundColor: learnColors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <Text style={{ color: learnColors.textDim, textAlign: "center", marginBottom: 12 }}>Tutor not found.</Text>
-        <Pressable onPress={() => router.back()} style={styles.roundBtn}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <Text style={{ color: colors.textDim, textAlign: "center", marginBottom: 12 }}>Tutor not found.</Text>
+        <Pressable onPress={() => router.back()} style={s.roundBtn}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </Pressable>
       </View>
     );
@@ -88,7 +91,7 @@ export default function TutorDetail() {
     "I’m a dedicated English educator with over five years of experience specializing in teaching healthcare professionals, including doctors and nurses, the language skills essential for their professional success.";
 
   return (
-    <View style={{ flex: 1, backgroundColor: learnColors.bg }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -97,28 +100,26 @@ export default function TutorDetail() {
           paddingHorizontal: 18,
         }}
       >
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.roundBtn}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+        <View style={s.topBar}>
+          <Pressable onPress={() => router.back()} style={s.roundBtn}>
+            <Ionicons name="arrow-back" size={20} color={colors.text} />
           </Pressable>
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable style={styles.roundBtn}>
-              <Ionicons name="chatbubble-ellipses-outline" size={20} color="#FFFFFF" />
+            <Pressable style={s.roundBtn}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.text} />
             </Pressable>
-            <Pressable style={styles.roundBtn}>
-              <Ionicons name="bookmark-outline" size={20} color="#FFFFFF" />
+            <Pressable style={s.roundBtn}>
+              <Ionicons name="bookmark-outline" size={20} color={colors.text} />
             </Pressable>
           </View>
         </View>
 
-        {/* Identity */}
         <View style={{ flexDirection: "row", alignItems: "center", marginTop: 16, marginBottom: 18 }}>
-          <View style={styles.avatarRing}>
+          <View style={s.avatarRing}>
             {tutor.avatar_url ? (
-              <Image source={{ uri: tutor.avatar_url }} style={styles.avatar} />
+              <Image source={{ uri: tutor.avatar_url }} style={s.avatar} />
             ) : (
-              <View style={[styles.avatar, { backgroundColor: "#DAD1FF", alignItems: "center", justifyContent: "center" }]}>
+              <View style={[s.avatar, { backgroundColor: "#DAD1FF", alignItems: "center", justifyContent: "center" }]}>
                 <Text style={{ fontSize: 26, fontWeight: "800", color: "#4B3F82" }}>
                   {tutor.name?.[0] ?? "?"}
                 </Text>
@@ -126,8 +127,8 @@ export default function TutorDetail() {
             )}
           </View>
           <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.name}>{tutor.name}</Text>
-            <Text style={styles.role}>
+            <Text style={s.name}>{tutor.name}</Text>
+            <Text style={s.role}>
               {tutor.headline ||
                 `Certified ${(tutor.native_accent || "English").toString().replace(/^./, (c) => c.toUpperCase())} Teacher`}
             </Text>
@@ -135,45 +136,42 @@ export default function TutorDetail() {
         </View>
 
         <View style={{ flexDirection: "row", gap: 20, marginBottom: 20 }}>
-          <View style={styles.iconMeta}>
-            <Ionicons name="school-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.iconMetaText}>{tutor.lessons_taught ?? 256} lessons</Text>
+          <View style={s.iconMeta}>
+            <Ionicons name="school-outline" size={18} color={colors.text} />
+            <Text style={s.iconMetaText}>{tutor.lessons_taught ?? 256} lessons</Text>
           </View>
-          <View style={styles.iconMeta}>
-            <Ionicons name="people-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.iconMetaText}>{tutor.students_count ?? 32} students</Text>
+          <View style={s.iconMeta}>
+            <Ionicons name="people-outline" size={18} color={colors.text} />
+            <Text style={s.iconMetaText}>{tutor.students_count ?? 32} students</Text>
           </View>
         </View>
 
-        {/* About me card */}
-        <View style={styles.aboutCard}>
-          <Text style={styles.aboutTitle}>About me</Text>
-          <Text style={styles.aboutText}>{bio}</Text>
+        <View style={s.aboutCard}>
+          <Text style={s.aboutTitle}>About me</Text>
+          <Text style={s.aboutText}>{bio}</Text>
         </View>
 
-        {/* Book lesson button */}
-        <Pressable style={({ pressed }) => [styles.bookBtn, pressed && { opacity: 0.9 }]}>
-          <Ionicons name="calendar-outline" size={18} color={learnColors.onLight} />
-          <Text style={styles.bookText}>Book lesson</Text>
+        <Pressable style={({ pressed }) => [s.bookBtn, pressed && { opacity: 0.9 }]}>
+          <Ionicons name="calendar-outline" size={18} color={colors.onLight} />
+          <Text style={s.bookText}>Book lesson</Text>
         </Pressable>
 
-        {/* Reviews */}
-        <View style={styles.reviewsCard}>
+        <View style={s.reviewsCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
             <Ionicons name="star" size={16} color="#0B0B0F" />
-            <Text style={styles.reviewsHeader}>
+            <Text style={s.reviewsHeader}>
               {rating} · {reviewsCount} reviews
             </Text>
           </View>
           {FALLBACK_REVIEWS.map((r) => (
-            <View key={r.id} style={styles.reviewItem}>
-              <View style={styles.reviewAvatar}>
+            <View key={r.id} style={s.reviewItem}>
+              <View style={s.reviewAvatar}>
                 <Text style={{ fontWeight: "800", color: "#4B3F82" }}>{r.name[0]}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.reviewerName}>{r.name}</Text>
-                <Text style={styles.reviewDate}>{r.date}</Text>
-                <Text style={styles.reviewText}>{r.text}</Text>
+                <Text style={s.reviewerName}>{r.name}</Text>
+                <Text style={s.reviewDate}>{r.date}</Text>
+                <Text style={s.reviewText}>{r.text}</Text>
               </View>
             </View>
           ))}
@@ -183,89 +181,71 @@ export default function TutorDetail() {
   );
 }
 
-const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  roundBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: learnColors.surfaceRaised,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 2,
-    borderColor: "#F0715C",
-    overflow: "hidden",
-  },
-  avatar: { width: "100%", height: "100%" },
-  name: { color: learnColors.text, fontSize: 26, fontWeight: "800" },
-  role: { color: learnColors.textDim, fontSize: 14, marginTop: 2 },
-  iconMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
-  iconMetaText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-  aboutCard: {
-    backgroundColor: learnColors.cardLight,
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 16,
-  },
-  aboutTitle: {
-    color: learnColors.onLight,
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 10,
-  },
-  aboutText: {
-    color: "#2A2A34",
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  bookBtn: {
-    backgroundColor: learnColors.cardPurple,
-    borderRadius: learnRadius.chip,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 16,
-  },
-  bookText: {
-    color: learnColors.onLight,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  reviewsCard: {
-    backgroundColor: learnColors.cardLight,
-    borderRadius: 22,
-    padding: 18,
-  },
-  reviewsHeader: {
-    color: learnColors.onLight,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  reviewItem: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 12,
-  },
-  reviewAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "#D8CBFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  reviewerName: { color: learnColors.onLight, fontSize: 14, fontWeight: "700" },
-  reviewDate: { color: "#6B6B75", fontSize: 12, marginBottom: 4 },
-  reviewText: { color: "#2A2A34", fontSize: 13, lineHeight: 19 },
-});
+const makeStyles = (c: LearnPalette) =>
+  StyleSheet.create({
+    topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    roundBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: c.surfaceRaised,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: c.mode === "light" ? 1 : 0,
+      borderColor: c.border,
+    },
+    avatarRing: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      borderWidth: 2,
+      borderColor: "#F0715C",
+      overflow: "hidden",
+    },
+    avatar: { width: "100%", height: "100%" },
+    name: { color: c.text, fontSize: 26, fontWeight: "800" },
+    role: { color: c.textDim, fontSize: 14, marginTop: 2 },
+    iconMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+    iconMetaText: { color: c.text, fontSize: 14, fontWeight: "600" },
+    aboutCard: {
+      backgroundColor: c.mode === "dark" ? c.cardLight : "#FFFFFF",
+      borderRadius: 22,
+      padding: 18,
+      marginBottom: 16,
+      borderWidth: c.mode === "light" ? 1 : 0,
+      borderColor: c.border,
+    },
+    aboutTitle: { color: c.onLight, fontSize: 18, fontWeight: "800", marginBottom: 10 },
+    aboutText: { color: "#2A2A34", fontSize: 14, lineHeight: 22 },
+    bookBtn: {
+      backgroundColor: c.cardPurple,
+      borderRadius: learnRadius.chip,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginBottom: 16,
+    },
+    bookText: { color: c.onLight, fontSize: 16, fontWeight: "700" },
+    reviewsCard: {
+      backgroundColor: c.mode === "dark" ? c.cardLight : "#FFFFFF",
+      borderRadius: 22,
+      padding: 18,
+      borderWidth: c.mode === "light" ? 1 : 0,
+      borderColor: c.border,
+    },
+    reviewsHeader: { color: c.onLight, fontSize: 16, fontWeight: "800" },
+    reviewItem: { flexDirection: "row", gap: 12, marginTop: 12 },
+    reviewAvatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: "#D8CBFF",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    reviewerName: { color: c.onLight, fontSize: 14, fontWeight: "700" },
+    reviewDate: { color: "#6B6B75", fontSize: 12, marginBottom: 4 },
+    reviewText: { color: "#2A2A34", fontSize: 13, lineHeight: 19 },
+  });

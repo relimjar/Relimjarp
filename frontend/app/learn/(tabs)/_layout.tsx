@@ -4,7 +4,7 @@ import React from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { learnColors, learnRadius } from "@/src/learn/theme";
+import { useLearnTheme } from "@/src/learn/ThemeContext";
 
 type IonIcon = keyof typeof Ionicons.glyphMap;
 
@@ -25,9 +25,10 @@ const TABS: TabDef[] = [
 
 function VocabTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const bottomGap = Math.max(insets.bottom, 10);
+  const { colors } = useLearnTheme();
+  const bottomGap = Math.max(insets.bottom, 8);
   return (
-    <View style={[styles.barWrap, { paddingBottom: bottomGap }]}>
+    <View style={[styles.barWrap, { paddingBottom: bottomGap, backgroundColor: colors.tabBg }]}>
       <View style={styles.bar}>
         {state.routes.map((route: any, index: number) => {
           const def = TABS.find((t) => t.name === route.name);
@@ -43,6 +44,8 @@ function VocabTabBar({ state, navigation }: any) {
               navigation.navigate(route.name);
             }
           };
+          const iconColor = focused ? colors.tabActiveText : colors.tabInactive;
+          const labelColor = focused ? colors.tabActivePill : colors.tabInactiveLabel;
           return (
             <Pressable
               key={route.key}
@@ -51,19 +54,20 @@ function VocabTabBar({ state, navigation }: any) {
               hitSlop={8}
               style={styles.tabBtn}
             >
-              <View style={[styles.pill, focused && styles.pillActive]}>
-                <Ionicons
-                  name={focused ? def.iconActive : def.icon}
-                  size={22}
-                  color={focused ? learnColors.tabActiveText : learnColors.tabInactive}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[styles.label, { color: focused ? learnColors.tabActiveText : learnColors.tabInactive }]}
-                >
-                  {def.label}
-                </Text>
+              <View
+                style={[
+                  styles.iconPill,
+                  focused && { backgroundColor: colors.tabActivePill },
+                ]}
+              >
+                <Ionicons name={focused ? def.iconActive : def.icon} size={20} color={iconColor} />
               </View>
+              <Text
+                numberOfLines={1}
+                style={[styles.label, { color: labelColor, fontWeight: focused ? "700" : "500" }]}
+              >
+                {def.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -73,11 +77,12 @@ function VocabTabBar({ state, navigation }: any) {
 }
 
 export default function VocabTabsLayout() {
+  const { colors } = useLearnTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: learnColors.bg },
+        sceneStyle: { backgroundColor: colors.bg },
       } as any}
       tabBar={(props) => <VocabTabBar {...props} />}
     >
@@ -90,41 +95,33 @@ export default function VocabTabsLayout() {
 
 const styles = StyleSheet.create({
   barWrap: {
-    backgroundColor: learnColors.bg,
     borderTopWidth: 0,
   },
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 4,
-    backgroundColor: learnColors.bg,
+    justifyContent: "space-around",
+    paddingHorizontal: 4,
+    paddingTop: 6,
+    paddingBottom: 2,
   },
   tabBtn: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 2,
-  },
-  pill: {
-    minWidth: 44,
-    minHeight: 44,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: learnRadius.chip,
-    alignItems: "center",
-    justifyContent: "center",
     gap: 2,
   },
-  pillActive: {
-    backgroundColor: learnColors.tabActivePill,
-    paddingHorizontal: 14,
+  iconPill: {
+    width: 44,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   label: {
     fontSize: 11,
-    fontWeight: Platform.OS === "ios" ? "600" : "700",
     marginTop: 1,
+    ...Platform.select({ ios: { fontWeight: "600" }, default: {} }),
   },
 });

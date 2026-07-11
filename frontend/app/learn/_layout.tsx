@@ -3,19 +3,28 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { View } from "react-native";
 
-import { learnColors } from "@/src/learn/theme";
+import { LearnThemeProvider, useLearnTheme } from "@/src/learn/ThemeContext";
 
-export default function LearnLayout() {
+function Shell() {
+  const { colors, mode } = useLearnTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: learnColors.bg }}>
-      <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <StatusBar style={mode === "dark" ? "light" : "dark"} />
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: learnColors.bg },
+          contentStyle: { backgroundColor: colors.bg },
           animation: "fade",
         }}
       />
     </View>
+  );
+}
+
+export default function LearnLayout() {
+  return (
+    <LearnThemeProvider>
+      <Shell />
+    </LearnThemeProvider>
   );
 }
