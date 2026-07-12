@@ -5,7 +5,7 @@ import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/context/AuthContext";
-import { vocabApi, VocabBooking, VocabStats } from "@/src/learn/api";
+import { vocabApi, VocabBooking, VocabStats, SupportedVocabLanguage } from "@/src/learn/api";
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 import { LearnPalette, learnRadius } from "@/src/learn/theme";
 

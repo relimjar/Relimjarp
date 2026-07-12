@@ -17,6 +17,9 @@ export type VocabWord = {
   example: string;
   topic_id: string;
   status: "new" | "learning" | "known";
+  lang?: string;
+  source_term?: string;
+  source_example?: string;
 };
 
 export type VocabLesson = {
@@ -88,10 +91,18 @@ export type VocabBooking = {
   tutor_avatar_url?: string;
 };
 
+export type SupportedVocabLanguage = {
+  code: string;
+  name: string;
+};
+
 export const vocabApi = {
   listTopics: () => api.get<VocabTopic[]>("/vocab/topics"),
   getTopic: (id: string) => api.get<VocabTopic>(`/vocab/topics/${id}`),
-  listWords: (topicId: string) => api.get<VocabWord[]>(`/vocab/topics/${topicId}/words`),
+  listWords: (topicId: string, lang?: string) => {
+    const q = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return api.get<VocabWord[]>(`/vocab/topics/${topicId}/words${q}`);
+  },
   listLessons: (params?: { topic_id?: string; level?: string }) => {
     const q = new URLSearchParams();
     if (params?.topic_id) q.set("topic_id", params.topic_id);
@@ -99,7 +110,16 @@ export const vocabApi = {
     const qs = q.toString();
     return api.get<VocabLesson[]>(`/vocab/lessons${qs ? `?${qs}` : ""}`);
   },
-  getLesson: (id: string) => api.get<VocabLessonFull>(`/vocab/lessons/${id}`),
+  getLesson: (id: string, lang?: string) => {
+    const q = lang ? `?lang=${encodeURIComponent(lang)}` : "";
+    return api.get<VocabLessonFull>(`/vocab/lessons/${id}${q}`);
+  },
+  listLanguages: () =>
+    api.get<{ supported: SupportedVocabLanguage[]; current: string }>(
+      "/vocab/languages",
+    ),
+  setLanguage: (lang: string) =>
+    api.post<{ ok: boolean; learning_language: string }>("/vocab/me/language", { lang }),
   setWordProgress: (word_id: string, status: "new" | "learning" | "known") =>
     api.post<{ ok: boolean; stats: VocabStats }>("/vocab/progress/word", { word_id, status }),
   completeLesson: (id: string, body: { step_count?: number; correct_count?: number }) =>

@@ -57,6 +57,18 @@ from routes.vocab_content import (  # noqa: E402
     TOPICS_SEED,
     WORDS_SEED,
 )
+from routes.vocab_translate import (  # noqa: E402
+    SUPPORTED_LANGUAGES,
+    ensure_topic_translations,
+    localize_word,
+    normalize_lang,
+)
+
+
+def _user_lang(current: dict, override: str | None) -> str:
+    """Resolve the effective learning language: explicit ``lang`` param wins,
+    otherwise fall back to the user's profile, otherwise English."""
+    return normalize_lang(override or current.get("learning_language"))
 
 
 def _lesson_steps(lesson: dict[str, Any], words: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -256,18 +268,34 @@ async def get_topic(topic_id: str, current: CurrentUser) -> dict[str, Any]:
 
 
 @router.get("/topics/{topic_id}/words")
-async def list_words(topic_id: str, current: CurrentUser) -> list[dict[str, Any]]:
+async def list_words(
+    topic_id: str, current: CurrentUser, lang: Optional[str] = None
+) -> list[dict[str, Any]]:
+    effective_lang = _user_lang(current, lang)
+    if effective_lang != "en":
+        await ensure_topic_translations(topic_id, effective_lang)
     docs = await vocab_words_col.find({"topic_id": topic_id}).to_list(500)
-    # Attach per-user status
-    prog = {p["word_id"]: p for p in await vocab_progress_col.find({"user_id": current["_id"], "topic_id": topic_id}).to_list(2000)}
-    return [{
-        "id": d["_id"],
-        "term": d["term"],
-        "translation": d["translation"],
-        "example": d.get("example", ""),
-        "topic_id": d["topic_id"],
-        "status": (prog.get(d["_id"]) or {}).get("status", "new"),
-    } for d in docs]
+    prog = {
+        p["word_id"]: p
+        for p in await vocab_progress_col.find(
+            {"user_id": current["_id"], "topic_id": topic_id}
+        ).to_list(2000)
+    }
+    out = []
+    for d in docs:
+        loc = localize_word(d, effective_lang)
+        out.append({
+            "id": d["_id"],
+            "term": loc["term"],
+            "translation": d["translation"],
+            "example": loc["example"],
+            "source_term": loc["source_term"],
+            "source_example": loc["source_example"],
+            "topic_id": d["topic_id"],
+            "lang": loc["lang"],
+            "status": (prog.get(d["_id"]) or {}).get("status", "new"),
+        })
+    return out
 
 
 @router.get("/lessons")
@@ -292,13 +320,21 @@ async def list_lessons(topic_id: Optional[str] = None, level: Optional[str] = No
 
 
 @router.get("/lessons/{lesson_id}")
-async def get_lesson(lesson_id: str, current: CurrentUser) -> dict[str, Any]:
+async def get_lesson(
+    lesson_id: str, current: CurrentUser, lang: Optional[str] = None
+) -> dict[str, Any]:
     l = await vocab_lessons_col.find_one({"_id": lesson_id})
     if not l:
         raise HTTPException(404, "Lesson not found")
-    words = await vocab_words_col.find({"topic_id": l["topic_id"]}).to_list(20)
-    steps = _lesson_steps(l, words)
-    prog = await vocab_lesson_prog_col.find_one({"user_id": current["_id"], "lesson_id": lesson_id})
+    effective_lang = _user_lang(current, lang)
+    if effective_lang != "en":
+        await ensure_topic_translations(l["topic_id"], effective_lang)
+    words_docs = await vocab_words_col.find({"topic_id": l["topic_id"]}).to_list(20)
+    localized_words = [localize_word(w, effective_lang) for w in words_docs]
+    steps = _lesson_steps(l, localized_words)
+    prog = await vocab_lesson_prog_col.find_one(
+        {"user_id": current["_id"], "lesson_id": lesson_id}
+    )
     return {
         "id": l["_id"],
         "title": l["title"],
@@ -307,6 +343,7 @@ async def get_lesson(lesson_id: str, current: CurrentUser) -> dict[str, Any]:
         "level": l["level"],
         "minutes": l["minutes"],
         "xp_reward": l.get("xp_reward", 20),
+        "lang": effective_lang,
         "steps": steps,
         "progress": {
             "status": (prog or {}).get("status", "new"),
@@ -314,6 +351,39 @@ async def get_lesson(lesson_id: str, current: CurrentUser) -> dict[str, Any]:
             "xp_awarded": (prog or {}).get("xp_awarded", 0),
         },
     }
+
+
+@router.get("/languages")
+async def list_supported_languages(current: CurrentUser) -> dict[str, Any]:
+    """Return the languages Vocab has full content for, plus the caller's
+    currently-selected `learning_language` (canonical ISO code)."""
+    return {
+        "supported": [
+            {"code": code, "name": name}
+            for code, name in SUPPORTED_LANGUAGES.items()
+        ],
+        "current": _user_lang(current, None),
+    }
+
+
+class SetLanguageIn(BaseModel):
+    lang: str
+
+
+@router.post("/me/language")
+async def set_learning_language(
+    body: SetLanguageIn, current: CurrentUser
+) -> dict[str, Any]:
+    """Update the caller's `learning_language` field (used across the app as
+    the target language they're actively studying)."""
+    code = normalize_lang(body.lang)
+    if code not in SUPPORTED_LANGUAGES:
+        raise HTTPException(400, "Unsupported language")
+    # Store the ISO code — matches what other endpoints already read.
+    await db["users"].update_one(
+        {"_id": current["_id"]}, {"$set": {"learning_language": code}}
+    )
+    return {"ok": True, "learning_language": code}
 
 
 # --------------------------------------------------------------------------- #

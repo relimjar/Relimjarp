@@ -5,6 +5,7 @@ import { ActivityIndicator, Animated, Easing, Pressable, ScrollView, StyleSheet,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { vocabApi, VocabTopic, VocabWord } from "@/src/learn/api";
+import { useAuth } from "@/src/context/AuthContext";
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 import { LearnPalette, learnRadius } from "@/src/learn/theme";
 
@@ -15,6 +16,8 @@ export default function TopicDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useLearnTheme();
+  const { user } = useAuth();
+  const learningLang = user?.learning_language || undefined;
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [topic, setTopic] = useState<VocabTopic | null>(null);
@@ -28,7 +31,7 @@ export default function TopicDetail() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [t, w] = await Promise.all([vocabApi.getTopic(id), vocabApi.listWords(id)]);
+      const [t, w] = await Promise.all([vocabApi.getTopic(id), vocabApi.listWords(id, learningLang)]);
       setTopic(t);
       setWords(w);
       // Start at first non-known word
@@ -37,7 +40,7 @@ export default function TopicDetail() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, learningLang]);
   useEffect(() => { load(); }, [load]);
 
   const current = words[idx];
@@ -141,6 +144,9 @@ export default function TopicDetail() {
                 <Animated.View style={[s.cardFace, s.cardBack, { transform: [{ rotateY: backRotate }] }]}>
                   <Text style={s.cardHint}>Meaning</Text>
                   <Text style={s.cardTranslation}>{current.translation}</Text>
+                  {current.source_term && current.source_term !== current.term ? (
+                    <Text style={s.cardSource}>{current.source_term}</Text>
+                  ) : null}
                 </Animated.View>
               </Pressable>
               <View style={s.actionRow}>
@@ -240,6 +246,7 @@ const makeStyles = (c: LearnPalette) =>
     cardTerm: { color: c.onLight, fontSize: 34, fontWeight: "800", textAlign: "center", marginBottom: 12 },
     cardExample: { color: "#2A2A34", fontSize: 14, fontStyle: "italic", textAlign: "center" },
     cardTranslation: { color: c.onLight, fontSize: 26, fontWeight: "800", textAlign: "center" },
+    cardSource: { color: "#2A2A34", fontSize: 15, fontStyle: "italic", textAlign: "center", marginTop: 8, opacity: 0.75 },
     actionRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
     actionBtn: {
       flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,

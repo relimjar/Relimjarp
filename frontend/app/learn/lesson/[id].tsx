@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { vocabApi, VocabLessonFull, VocabLessonStep } from "@/src/learn/api";
+import { useAuth } from "@/src/context/AuthContext";
 import { useLearnTheme } from "@/src/learn/ThemeContext";
 import { LearnPalette, learnRadius } from "@/src/learn/theme";
 
@@ -13,6 +14,8 @@ export default function LessonPlayer() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useLearnTheme();
+  const { user } = useAuth();
+  const learningLang = user?.learning_language || undefined;
   const s = useMemo(() => makeStyles(colors), [colors]);
 
   const [lesson, setLesson] = useState<VocabLessonFull | null>(null);
@@ -26,12 +29,12 @@ export default function LessonPlayer() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const l = await vocabApi.getLesson(id);
+      const l = await vocabApi.getLesson(id, learningLang);
       setLesson(l);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, learningLang]);
   useEffect(() => { load(); }, [load]);
 
   const step: VocabLessonStep | undefined = lesson?.steps[idx];
