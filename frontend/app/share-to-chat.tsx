@@ -124,7 +124,7 @@ export default function ShareToChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <View style={styles.header}>
         <BackButton testID="share-chat-back-btn" />
         <Text style={styles.title}>Share to Chat</Text>

@@ -19,7 +19,7 @@ export default function LearnExplore() {
   const router = useRouter();
   const dockPad = useLearnDockPadding();
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
         <Text style={styles.h1}>Explore</Text>
         <View style={styles.rightGroup}>

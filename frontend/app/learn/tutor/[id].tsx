@@ -106,7 +106,7 @@ export default function TutorDetail() {
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
         <Text style={{ color: colors.textDim, textAlign: "center", marginBottom: 12 }}>Tutor not found.</Text>
         <Pressable onPress={() => router.back()} style={s.roundBtn}>
-          <VIcon name="arrow-back" size={20} color={colors.text} />
+          <VIcon name="arrow-back" size={24} color={colors.text} />
         </Pressable>
       </View>
     );
@@ -126,7 +126,7 @@ export default function TutorDetail() {
       >
         <View style={s.topBar}>
           <Pressable onPress={() => router.back()} style={s.roundBtn}>
-            <VIcon name="arrow-back" size={20} color={colors.text} />
+            <VIcon name="arrow-back" size={24} color={colors.text} />
           </Pressable>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <Pressable style={s.roundBtn}>
@@ -297,7 +297,7 @@ const makeStyles = (c: LearnPalette) =>
   StyleSheet.create({
     topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     roundBtn: {
-      width: 44, height: 44, borderRadius: 22, backgroundColor: c.surfaceRaised,
+      width: 40, height: 40, borderRadius: 20, backgroundColor: c.surfaceRaised,
       alignItems: "center", justifyContent: "center",
       borderWidth: c.mode === "light" ? 1 : 0, borderColor: c.border,
     },

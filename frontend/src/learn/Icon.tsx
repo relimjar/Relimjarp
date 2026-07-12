@@ -19,8 +19,8 @@ import { StyleProp, TextStyle } from "react-native";
 
 const NAME_MAP: Record<string, string> = {
   // ── Navigation / arrows ──────────────────────────────────────────────
-  "arrow-back": "arrow-left",
-  "arrow-forward": "arrow-right",
+  "arrow-back": "chevron-left",
+  "arrow-forward": "chevron-right",
   "chevron-forward": "chevron-right",
   "chevron-back": "chevron-left",
   "chevron-down": "chevron-down",

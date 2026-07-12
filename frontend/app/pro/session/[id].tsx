@@ -139,7 +139,7 @@ export default function ProSession() {
           </>
         )}
 
-        <SafeAreaView edges={["top"]} style={styles.feedTopBar}>
+        <SafeAreaView edges={["top", "bottom"]} style={styles.feedTopBar}>
           <View style={styles.livePill}>
             <View style={[styles.liveDot, { backgroundColor: connected ? "#4ADE80" : "#EF5B4C" }]} />
             <Text style={styles.liveText}>{connected ? "LIVE" : "…"} · {clock}</Text>

@@ -89,7 +89,7 @@ export default function TopicDetail() {
       {/* Header */}
       <View style={[s.topBar, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} style={s.roundBtn}>
-          <VIcon name="arrow-back" size={20} color={colors.text} />
+          <VIcon name="arrow-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={s.headerTitle} numberOfLines={1}>{topic.name}</Text>
         <View style={{ width: 44 }} />
@@ -200,7 +200,7 @@ const makeStyles = (c: LearnPalette) =>
       paddingHorizontal: 18, paddingBottom: 10,
     },
     roundBtn: {
-      width: 44, height: 44, borderRadius: 22, backgroundColor: c.surfaceRaised,
+      width: 40, height: 40, borderRadius: 20, backgroundColor: c.surfaceRaised,
       alignItems: "center", justifyContent: "center",
       borderWidth: c.mode === "light" ? 1 : 0, borderColor: c.border,
     },

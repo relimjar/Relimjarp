@@ -66,7 +66,7 @@ export default function LearnClasses() {
   const dockPad = useLearnDockPadding();
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       <View style={styles.topBar}>
         <Text style={styles.h1}>Live classes</Text>
         <Pressable

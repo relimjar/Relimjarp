@@ -22,7 +22,7 @@ export default function LearnPlan() {
   const shortName = (user?.name || "friend").split(" ")[0].slice(0, 8);
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       {/* Top bar — streak + avatar */}
       <View style={styles.topBar}>
         <View style={{ flex: 1 }} />

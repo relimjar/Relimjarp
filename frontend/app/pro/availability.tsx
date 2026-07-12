@@ -73,7 +73,7 @@ export default function ProAvailability() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]} testID="pro-availability-screen">
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]} testID="pro-availability-screen">
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
           <Ionicons name="chevron-back" size={22} color={proColors.ink} />

@@ -81,7 +81,7 @@ export default function ProTutorDetail() {
   }
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]} testID="pro-tutor-detail">
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]} testID="pro-tutor-detail">
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <View style={styles.topBar}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8} testID="pro-tutor-back">

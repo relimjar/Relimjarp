@@ -61,7 +61,7 @@ export default function LearnDashboard() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <SafeAreaView style={styles.screen} edges={["top", "bottom"]}>
       {/* Top nav */}
       <View style={styles.topBar}>
         <Pressable
